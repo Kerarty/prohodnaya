@@ -55,7 +55,12 @@ export function drawRuleBoard(
     board.add(scene.add.circle(-width / 2 + 40, y, 5, THEME.ACCENT));
     board.add(
       scene.add
-        .text(-width / 2 + 60, y, rule.text, { fontFamily: FONT, fontSize: '22px', color: INK_HEX })
+        .text(-width / 2 + 60, y, rule.text, {
+          fontFamily: FONT,
+          fontSize: '20px',
+          color: INK_HEX,
+          wordWrap: { width: 340 },
+        })
         .setOrigin(0, 0.5),
     );
     board.add(ruleIcon(scene, -width / 2 + width - 48, y, rule));

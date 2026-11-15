@@ -42,6 +42,8 @@ export function spawnThought(scene: Phaser.Scene, guest: Phaser.GameObjects.Cont
 
   scene.tweens.add({ targets: cloud, scale: 1, duration: 200, ease: 'Back.easeOut' });
   scene.time.delayedCall(900, () => {
+    // гость мог уйти вместе с облачком — не трогаем уничтоженное
+    if (!cloud.active) return;
     scene.tweens.add({ targets: cloud, alpha: 0, duration: 150, onComplete: () => cloud.destroy() });
   });
 }

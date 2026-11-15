@@ -70,8 +70,13 @@ async function bootstrap(): Promise<void> {
     },
     scene: [BootScene, MenuScene, GameScene, PlatformTestScene],
   });
-  // Отладочный доступ к инстансу игры из консоли браузера
+  // Отладочный доступ: инстанс игры, Phaser и классы сцен из консоли
+  // (window.__dbg.Phaser.HEADLESS используется тестовым ригом без рендера)
   (window as unknown as { __game: Phaser.Game }).__game = game;
+  (window as unknown as { __dbg: { Phaser: typeof Phaser; scenes: Phaser.Types.Scenes.SceneType[] } }).__dbg = {
+    Phaser,
+    scenes: [BootScene, MenuScene, GameScene, PlatformTestScene],
+  };
 }
 
 void bootstrap();
