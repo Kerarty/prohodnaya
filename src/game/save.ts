@@ -20,6 +20,16 @@ export interface ShiftProgress {
   fastCount: number;
 }
 
+/** Мультиплеерная статистика (план мультиплеера, фазы 1–2). */
+export interface MultiplayerSave {
+  blitzBest: number;
+  blitzRuns: number;
+  duelWins: number;
+  duelLosses: number;
+  duelDraws: number;
+  duelRating: number;
+}
+
 /** Схема облачного сейва v1 (ГДД разд. 6). ~1 КБ — далеко до лимита 200 КБ. */
 export interface SaveDataV1 {
   version: 1;
@@ -36,6 +46,7 @@ export interface SaveDataV1 {
   dailyPlayed: string | null;
   /** Ключ даты последней ночной смены (1 в день, ГДД разд. 7). */
   nightPlayed: string | null;
+  mp: MultiplayerSave;
 }
 
 export function epochDays(now = Date.now()): number {
@@ -69,6 +80,7 @@ export function defaultSave(todayBase: number): SaveDataV1 {
     currentShift: null,
     dailyPlayed: null,
     nightPlayed: null,
+    mp: { blitzBest: 0, blitzRuns: 0, duelWins: 0, duelLosses: 0, duelDraws: 0, duelRating: 1000 },
   };
 }
 
@@ -117,6 +129,20 @@ export function normalizeSave(raw: unknown, todayBase: number): SaveDataV1 {
       : null,
     dailyPlayed: typeof r.dailyPlayed === 'string' ? r.dailyPlayed : null,
     nightPlayed: typeof r.nightPlayed === 'string' ? r.nightPlayed : null,
+    mp: readMp(r.mp),
+  };
+}
+
+function readMp(raw: unknown): MultiplayerSave {
+  const def = defaultSave(0).mp;
+  const m = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  return {
+    blitzBest: int(m.blitzBest, def.blitzBest, 0),
+    blitzRuns: int(m.blitzRuns, def.blitzRuns, 0),
+    duelWins: int(m.duelWins, def.duelWins, 0),
+    duelLosses: int(m.duelLosses, def.duelLosses, 0),
+    duelDraws: int(m.duelDraws, def.duelDraws, 0),
+    duelRating: int(m.duelRating, def.duelRating, 0),
   };
 }
 

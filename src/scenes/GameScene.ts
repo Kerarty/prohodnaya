@@ -2,12 +2,19 @@ import Phaser from 'phaser';
 import { getPlatform } from '../platform';
 import { describeForgery, describeViolation } from '../game/application';
 import type { Application, Decision, DocFieldId } from '../game/application';
-import { BALANCE, BOARD_IDS, correctReward, dailyScore, nightReward, rankFor } from '../game/economy';
+import {
+  BALANCE,
+  BOARD_IDS,
+  correctReward,
+  dailyScore,
+  duelDelta,
+  nightReward,
+  rankFor,
+} from '../game/economy';
 import { generateShift } from '../game/generation';
 import { newShiftSeed } from '../game/rng';
-import { dateKey, dailySeed } from '../game/save';
-import type { Rule } from '../game/rules';
 import { commitSession, flushSession, session, sessionRank, sessionToday } from '../game/session';
+import type { Rule } from '../game/rules';
 import {
   drawCharacter,
   guestDeflate,
@@ -19,10 +26,11 @@ import { drawBooth } from '../render/booth';
 import { bulbWave, confetti, spawnThought } from '../render/juice';
 import { PassCard } from '../render/passCard';
 import { drawRuleBoard } from '../render/ruleBoard';
-import type { RuleBoardView } from '../render/ruleBoard';
 import { drawHardShadow, FONT, INK_HEX, THEME } from '../render/theme';
 import { sfx } from '../systems/sfx';
 import { makeButton } from '../ui/button';
+import { createMatchAPI } from '../net/matchApi';
+import type { MatchAPI, MatchOutcome, MatchPoll } from '../net/matchApi';
 
 const BOARD_W = 560;
 const BOARD_CY = 130;
@@ -38,16 +46,36 @@ const MAX_ERRORS = BALANCE.maxErrors;
 /** Счётчик запусков для смешивания сидов (ГДД разд. 3.3). */
 let launchCounter = 0;
 
+/** Отложенный запуск (кнопки «ещё раз» и дуэль из кабинета переживают restart сцены). */
+let pendingLaunch: SceneLaunchData | null = null;
+
+/** Запуск сцены с данными после restart (кнопка «ещё раз», дуэль из кабинета). */
+export function queueLaunch(data: SceneLaunchData): void {
+  pendingLaunch = data;
+}
+
 export interface SceneLaunchData {
   /** Новая дневная смена — кабинет уже проставил флаг в сейве. */
   daily?: boolean;
   /** Новая ночная смена — кабинет уже проставил флаг в сейве. */
   night?: boolean;
+  /** Режим блица: 90 с, ошибка −5 с, скор в лидерборд. */
+  blitz?: boolean;
+  /** Дуэль: тот же забег с соперником. */
+  duel?: boolean;
+  matchId?: string;
+  seed?: number;
+  durationMs?: number;
+  startAt?: number;
+  opponentName?: string;
+  botOpponent?: boolean;
 }
 
+type RunMode = 'shift' | 'blitz' | 'duel';
+
 /**
- * Кор-сцена «Мульт-поп»: booth-фон, смена по сиду, экономика, стрик,
- * восстановление смены, монетизация (дни 5–6 + арт-апгрейд).
+ * Кор-сцена: обычные смены, блиц и дуэли. Экономика, стрик, восстановление,
+ * монетизация (дни 5–6) + мультиплеер (план мультиплеера, фазы 1–2).
  */
 export class GameScene extends Phaser.Scene {
   private queue: Application[] = [];
@@ -56,6 +84,7 @@ export class GameScene extends Phaser.Scene {
   private seed = 0;
   private isDaily = false;
   private isNight = false;
+  private runMode: RunMode = 'shift';
   private rankIndexStart = 0;
   private index = 0;
   private correct = 0;
@@ -82,32 +111,62 @@ export class GameScene extends Phaser.Scene {
   private patienceBar: Phaser.GameObjects.Rectangle | null = null;
   private patienceEvent: Phaser.Time.TimerEvent | null = null;
   private signBulbs: Phaser.GameObjects.Arc[] = [];
-  private boardView: RuleBoardView | null = null;
+  private boardView: { board: Phaser.GameObjects.Container; pulse(): void } | null = null;
+  // Блиц/дуэль: глобальный таймер забега вместо терпения на заявку
+  private runDuration = BALANCE.blitzDurationMs;
+  private runEndAt = 0;
+  private runStarted = false;
+  private runEnded = false;
+  private duelMatchId: string | null = null;
+  private duelStartAt = 0;
+  private duelOpponentName = 'Соперник';
+  private duelReported = false;
+  private duelOutcome: MatchOutcome | null = null;
+  private matchApi: MatchAPI | null = null;
+  private lastOpponentPoll = 0;
+  private opponentScore = 0;
+  private opponentText: Phaser.GameObjects.Text | null = null;
+  private countdownText: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super('Game');
   }
 
   create(data?: SceneLaunchData): void {
-    const { width } = this.scale;
+    const { width, height } = this.scale;
     const s = session();
     this.isDaily = false;
     this.isNight = false;
+    this.runEnded = false;
+    this.runStarted = false;
+    this.forgivenThisShift = false;
     this.rankIndexStart = sessionRank().index;
     this.signBulbs = [];
+    this.matchApi = null;
 
-    drawBooth(this, width, 'game');
+    const launch: SceneLaunchData = pendingLaunch ?? data ?? {};
+    pendingLaunch = null;
 
-    if (data?.daily) {
-      this.isDaily = true;
-      this.shift = s.shiftNumber;
-      this.seed = dailySeed(dateKey());
-    } else if (data?.night) {
-      this.isNight = true;
+    if (launch.blitz) {
+      this.runMode = 'blitz';
+      this.runDuration = BALANCE.blitzDurationMs;
       this.shift = s.shiftNumber;
       this.seed = newShiftSeed(launchCounter++);
+    } else if (launch.duel) {
+      this.runMode = 'duel';
+      this.runDuration = launch.durationMs ?? BALANCE.duelDurationMs;
+      this.shift = s.shiftNumber;
+      this.seed = launch.seed ?? newShiftSeed(launchCounter++);
+      this.duelMatchId = launch.matchId ?? null;
+      this.duelStartAt = launch.startAt ?? Date.now() + BALANCE.duelCountdownMs;
+      this.duelOpponentName = launch.opponentName ?? 'Соперник';
+      // API дуэли: HTTP-клиент к бандл-серверу или бот (probe ~0.8 с)
+      void createMatchAPI().then((api) => {
+        this.matchApi = api;
+      });
     } else if (s.currentShift) {
       // Продолжение незавершённой смены — та же очередь, та же заявка (ГДД разд. 9)
+      this.runMode = 'shift';
       const p = s.currentShift;
       this.isDaily = p.isDaily;
       this.isNight = p.isNight;
@@ -120,36 +179,51 @@ export class GameScene extends Phaser.Scene {
       this.earnedXp = p.earnedXp;
       this.fastCount = p.fastCount;
     } else {
+      this.runMode = 'shift';
       this.shift = s.shiftNumber;
       this.seed = newShiftSeed(launchCounter++);
     }
 
-    const total = this.isDaily || this.isNight ? BALANCE.dailyApps : undefined;
+    const total = this.runMode === 'shift' ? undefined : BALANCE.blitzApps;
     const generated = generateShift(
       this.seed,
       this.shift,
-      s.currentShift && !data?.daily ? s.currentShift.today : sessionToday(),
+      this.runMode === 'shift' && s.currentShift ? s.currentShift.today : sessionToday(),
       total,
     );
     this.queue = generated.apps;
     this.rules = generated.rules;
     this.index = Math.min(this.index, this.queue.length - 1);
     console.info(
-      `[shift] ${this.isDaily ? 'дневная' : this.isNight ? 'ночная' : `смена ${this.shift}`}, сид ${this.seed}, заявок ${this.queue.length}`,
+      `[shift] ${this.runMode}, сид ${this.seed}, заявок ${this.queue.length}`,
     );
 
     if (s.tools.detector) this.detectorCharges = BALANCE.detectorFreeCharges;
 
-    if (!s.currentShift) {
-      this.trackProgress();
+    if (this.runMode === 'shift' && !s.currentShift) {
+      s.currentShift = {
+        seed: this.seed,
+        shift: this.shift,
+        isDaily: this.isDaily,
+        isNight: this.isNight,
+        today: sessionToday(),
+        appIndex: 0,
+        correct: 0,
+        errors: 0,
+        earnedTokens: 0,
+        earnedXp: 0,
+        fastCount: 0,
+      };
       void flushSession();
     }
+
+    drawBooth(this, width, 'game');
 
     this.boardView = drawRuleBoard(this, this.rules, width / 2, BOARD_CY, BOARD_W);
     this.boardView.pulse();
 
     this.patienceBar = this.add
-      .rectangle(40, BAR_Y, width - 80, 8, THEME.PANEL_DARK)
+      .rectangle(40, BAR_Y, width - 80, 8, THEME.SUCCESS)
       .setOrigin(0, 0.5);
     const barFrame = this.add.graphics();
     barFrame.lineStyle(3, THEME.INK, 0.6);
@@ -165,6 +239,18 @@ export class GameScene extends Phaser.Scene {
         padding: { x: 10, y: 5 },
       })
       .setOrigin(0, 0.5);
+
+    if (this.runMode === 'duel') {
+      this.opponentText = this.add
+        .text(width - 40, COUNTER_Y, 'Соперник: 0', {
+          fontFamily: FONT,
+          fontSize: '20px',
+          color: INK_HEX,
+          backgroundColor: '#ffffff',
+          padding: { x: 10, y: 5 },
+        })
+        .setOrigin(1, 0.5);
+    }
 
     this.approveBtn = makeButton(
       this,
@@ -185,19 +271,89 @@ export class GameScene extends Phaser.Scene {
 
     if (s.tools.detector) this.createDetectorButton(width);
 
+    // Блиц стартует сразу; дуэль — по startAt (отсчёт в onSceneUpdate)
+    if (this.runMode === 'blitz') {
+      this.runStarted = true;
+      this.runEndAt = this.time.now + this.runDuration;
+    } else if (this.runMode === 'duel') {
+      this.countdownText = this.add
+        .text(width / 2, height / 2, '', {
+          fontFamily: FONT,
+          fontSize: '54px',
+          color: INK_HEX,
+          fontStyle: 'bold',
+          backgroundColor: '#ffffff',
+          padding: { x: 24, y: 12 },
+        })
+        .setOrigin(0.5)
+        .setDepth(20);
+    }
+
+    // Таймер забега и опрос соперника — на каждый кадр сцены
+    this.events.off(Phaser.Scenes.Events.UPDATE, this.onSceneUpdate, this);
+    this.events.on(Phaser.Scenes.Events.UPDATE, this.onSceneUpdate, this);
+
     this.showApplication();
   }
 
-  /** Rewarded с паузой и заглушением звука (п. 4.7 правил Яндекса). */
-  private async showRewardedSafe(onReward: () => void): Promise<'shown' | 'failed'> {
-    const wasBusy = this.busy;
-    this.setButtonsEnabled(false);
-    sfx.setMuted(true);
+  /** Глобальный таймер блица/дуэли, старт по startAt, опрос соперника. */
+  private onSceneUpdate(): void {
+    if (this.runMode === 'shift' || this.runEnded) return;
+
+    if (!this.runStarted) {
+      // дуэль ждёт startAt (общий для обоих игроков момент старта)
+      const waitMs = this.duelStartAt - Date.now();
+      if (waitMs > 0) {
+        this.countdownText?.setText(`Старт через ${Math.ceil(waitMs / 1000)}`);
+        return;
+      }
+      this.startRun();
+    }
+
+    const remaining = Math.max(0, this.runEndAt - this.time.now);
+    if (this.patienceBar) this.patienceBar.scaleX = remaining / this.runDuration;
+    if (this.patienceBar) {
+      this.patienceBar.fillColor = remaining > this.runDuration * 0.25 ? THEME.SUCCESS : THEME.ERROR;
+    }
+    this.updateCounter(remaining);
+
+    if (this.runMode === 'duel' && Date.now() - this.lastOpponentPoll > 2000) {
+      this.lastOpponentPoll = Date.now();
+      void this.pollOpponent();
+    }
+
+    if (remaining <= 0) this.endRun();
+  }
+
+  private startRun(): void {
+    this.runStarted = true;
+    this.runEndAt = this.time.now + this.runDuration;
+    this.countdownText?.destroy();
+    this.countdownText = null;
+    if (!this.busy) this.setButtonsEnabled(true);
+  }
+
+  private updateCounter(remainingMs?: number): void {
+    if (this.runMode === 'shift') {
+      const label = this.isDaily ? 'Дневная смена' : this.isNight ? 'Ночная смена' : `Смена ${this.shift}`;
+      this.counter?.setText(
+        `${label} · Заявка ${this.index + 1}/${this.queue.length} · Ошибки: ${this.errors}/${MAX_ERRORS}`,
+      );
+      return;
+    }
+    const label = this.runMode === 'blitz' ? 'Блиц' : 'Дуэль';
+    const secs = remainingMs === undefined ? '' : `${Math.ceil(remainingMs / 1000)} с · `;
+    this.counter?.setText(`${label} · ${secs}Верно: ${this.correct} · Ошибки: ${this.errors}`);
+  }
+
+  private async pollOpponent(): Promise<void> {
+    if (!this.matchApi || !this.duelMatchId) return;
     try {
-      return await getPlatform().showRewarded(onReward);
-    } finally {
-      sfx.setMuted(false);
-      if (!wasBusy) this.setButtonsEnabled(true);
+      const poll = await this.matchApi.pollMatch(this.duelMatchId);
+      this.opponentScore = poll.opponentScore;
+      this.opponentText?.setText(`Соперник: ${poll.opponentScore}`);
+    } catch {
+      // сетевая ошибка — попробуем на следующем опросе
     }
   }
 
@@ -215,6 +371,19 @@ export class GameScene extends Phaser.Scene {
       height: 64,
       fontSize: 20,
     });
+  }
+
+  /** Rewarded с паузой и заглушением звука (п. 4.7 правил Яндекса). */
+  private async showRewardedSafe(onReward: () => void): Promise<'shown' | 'failed'> {
+    const wasBusy = this.busy;
+    this.setButtonsEnabled(false);
+    sfx.setMuted(true);
+    try {
+      return await getPlatform().showRewarded(onReward);
+    } finally {
+      sfx.setMuted(false);
+      if (!wasBusy) this.setButtonsEnabled(true);
+    }
   }
 
   private useDetector(): void {
@@ -288,13 +457,6 @@ export class GameScene extends Phaser.Scene {
     this.detectorBtn?.setAlpha(on ? 1 : 0.35);
   }
 
-  private updateCounter(): void {
-    const label = this.isDaily ? 'Дневная смена' : this.isNight ? 'Ночная смена' : `Смена ${this.shift}`;
-    this.counter?.setText(
-      `${label} · Заявка ${this.index + 1}/${this.queue.length} · Ошибки: ${this.errors}/${MAX_ERRORS}`,
-    );
-  }
-
   private showApplication(): void {
     const { width } = this.scale;
     const app = this.queue[this.index];
@@ -328,15 +490,19 @@ export class GameScene extends Phaser.Scene {
       duration: 200,
       delay: 250,
       onComplete: () => {
-        this.setButtonsEnabled(true);
         this.decisionStart = Date.now();
-        this.startPatience();
+        if (this.runMode === 'shift') {
+          this.setButtonsEnabled(true);
+          this.startPatience();
+        } else if (this.runStarted) {
+          this.setButtonsEnabled(true);
+        }
         if (this.guest) startBreathing(this.guest, GUEST_SCALE);
       },
     });
   }
 
-  /** Терпение (ГДД разд. 2): гость уходит сам, ошибка не начисляется; у последней заявки ∞. */
+  /** Терпение (ГДД разд. 2) — только в обычных сменах; в блице/дуэле глобальный таймер. */
   private startPatience(): void {
     this.stopPatience();
     if (!this.patienceBar) return;
@@ -346,6 +512,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.patienceBar.setVisible(true);
     this.patienceBar.scaleX = 1;
+    this.patienceBar.fillColor = THEME.PANEL_DARK;
     this.tweens.add({ targets: this.patienceBar, scaleX: 0, duration: PATIENCE_MS, ease: 'Linear' });
     this.patienceEvent = this.time.delayedCall(PATIENCE_MS, () => this.patienceExpired());
   }
@@ -368,6 +535,7 @@ export class GameScene extends Phaser.Scene {
 
   private decide(decision: Decision): void {
     if (this.busy) return;
+    if (this.runMode !== 'shift' && !this.runStarted) return; // дуэль: ждём startAt
     const app = this.queue[this.index];
     const fast = Date.now() - this.decisionStart <= BALANCE.speedBonusMs;
     const ok = decision === app.expected;
@@ -377,34 +545,50 @@ export class GameScene extends Phaser.Scene {
     sfx.stamp();
 
     if (ok) {
-      const base = correctReward(fast);
-      const reward = this.isNight ? nightReward(base) : base;
       this.correct += 1;
-      this.earnedTokens += reward;
-      this.earnedXp += BALANCE.xpPerCorrect;
-      if (fast) this.fastCount += 1;
-      const s = session();
-      s.currentStreak += 1;
-      if (s.currentStreak > s.bestStreak) s.bestStreak = s.currentStreak;
-      if (this.guest) guestReact(this.guest, 'ok');
-      this.trackProgress();
-      this.time.delayedCall(300, () => {
-        this.flash(THEME.SUCCESS);
-        sfx.chip();
-        sfx.success();
-        sfx.coin();
-        confetti(this, this.scale.width / 2, 480);
-        bulbWave(this, this.signBulbs);
-        this.floatText(`+${reward}`, '#3ec46d');
-      });
-      this.time.delayedCall(800, () => this.leaveGuest('ok'));
+      if (this.runMode === 'shift') {
+        const base = correctReward(fast);
+        const reward = this.isNight ? nightReward(base) : base;
+        this.earnedTokens += reward;
+        this.earnedXp += BALANCE.xpPerCorrect;
+        if (fast) this.fastCount += 1;
+        const s = session();
+        s.currentStreak += 1;
+        if (s.currentStreak > s.bestStreak) s.bestStreak = s.currentStreak;
+        if (this.guest) guestReact(this.guest, 'ok');
+        this.trackProgress();
+        this.time.delayedCall(300, () => {
+          this.flash(THEME.SUCCESS);
+          sfx.chip();
+          sfx.success();
+          sfx.coin();
+          confetti(this, this.scale.width / 2, 480);
+          bulbWave(this, this.signBulbs);
+          this.floatText(`+${reward}`, '#3ec46d');
+        });
+        this.time.delayedCall(800, () => this.leaveGuest('ok'));
+      } else {
+        // блиц/дуэль: чистый скор, без жетонов и XP
+        if (this.guest) guestReact(this.guest, 'ok');
+        this.time.delayedCall(300, () => {
+          this.flash(THEME.SUCCESS);
+          sfx.chip();
+          sfx.success();
+          confetti(this, this.scale.width / 2, 480);
+          bulbWave(this, this.signBulbs);
+        });
+        this.time.delayedCall(800, () => this.leaveGuest('ok'));
+      }
     } else {
       session().currentStreak = 0;
       if (this.guest) {
         guestReact(this.guest, 'reject');
         guestDeflate(this.guest);
       }
-      this.trackProgress();
+      if (this.runMode !== 'shift') {
+        // ошибка в блице/дуэле съедает время забега (план мультиплеера, фаза 1)
+        this.runEndAt -= BALANCE.blitzMistakePenaltyMs;
+      }
       this.time.delayedCall(300, () => {
         this.flash(THEME.ERROR);
         sfx.fail();
@@ -413,8 +597,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Прогресс смены после каждой закрытой заявки — облачный сейв с троттлингом (ГДД разд. 6). */
+  /** Прогресс смены после каждой закрытой заявки — только для обычных смен. */
   private trackProgress(): void {
+    if (this.runMode !== 'shift') return;
     session().currentShift = {
       seed: this.seed,
       shift: this.shift,
@@ -457,14 +642,15 @@ export class GameScene extends Phaser.Scene {
 
   private next(): void {
     this.index += 1;
+    if (this.runMode !== 'shift' && this.runEnded) return; // время вышло посреди перехода
     if (this.index >= this.queue.length) {
-      this.finish();
+      if (this.runMode === 'shift') this.finish();
+      else this.endRun();
     } else {
       this.showApplication();
     }
   }
 
-  /** Вспышка вердикта — 0.12 на светлом фоне (спека §5, исправление). */
   private flash(color: number): void {
     const { width, height } = this.scale;
     const rect = this.add.rectangle(width / 2, height / 2, width, height, color, THEME.FLASH_A);
@@ -517,7 +703,8 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5),
     );
 
-    const limitReached = counted && this.errors >= MAX_ERRORS && !this.isNight;
+    const limitReached =
+      counted && this.errors >= MAX_ERRORS && !this.isNight && this.runMode === 'shift';
     if (limitReached && !this.forgivenThisShift) {
       // Прощение ошибки за rewarded: ошибка аннулируется, смена продолжается (ГДД разд. 7)
       panel.add(
@@ -557,6 +744,17 @@ export class GameScene extends Phaser.Scene {
         ),
       );
     } else {
+      const extra =
+        this.runMode !== 'shift' && counted
+          ? `Минус ${BALANCE.blitzMistakePenaltyMs / 1000} с к таймеру`
+          : null;
+      if (extra) {
+        panel.add(
+          this.add
+            .text(0, 40, extra, { fontFamily: FONT, fontSize: '22px', color: '#e27474', fontStyle: 'bold' })
+            .setOrigin(0.5),
+        );
+      }
       panel.add(
         makeButton(
           this,
@@ -661,11 +859,8 @@ export class GameScene extends Phaser.Scene {
     s.tokens += this.finishTokenTotal;
     s.xp += this.finishXpTotal;
     s.currentShift = null;
-    if (!this.isDaily && !this.isNight) s.shiftNumber += 1;
+    s.shiftNumber += 1;
 
-    if (this.isDaily) {
-      void getPlatform().submitScore(BOARD_IDS.daily, dailyScore(this.correct, this.fastCount, this.errors));
-    }
     void getPlatform().submitScore(BOARD_IDS.streak, s.bestStreak);
     void flushSession();
 
@@ -764,6 +959,203 @@ export class GameScene extends Phaser.Scene {
       this.doubleBtn?.destroy();
       this.doubleBtn = null;
       this.rewardText?.setText(`Жетоны: +${this.finishTokenTotal * 2} · XP: +${this.finishXpTotal}`);
+    });
+  }
+
+  /** Время забега вышло — конец блица/дуэли. */
+  private endRun(): void {
+    if (this.runEnded) return;
+    this.runEnded = true;
+    this.busy = true;
+    this.stopPatience();
+    this.setButtonsEnabled(false);
+    const score = this.runScore();
+    if (this.runMode === 'blitz') this.finishBlitz(score);
+    else this.finishDuel(score);
+  }
+
+  /** Скор блица/дуэли — существующие очки смены (план мультиплеера, фаза 1). */
+  private runScore(): number {
+    return this.correct * 10 + this.fastCount;
+  }
+
+  /** Блиц: скор в лидерборды Яндекса (blitzDay/blitzBest) и свой рекорд в сейв. */
+  private finishBlitz(score: number): void {
+    const s = session();
+    s.mp.blitzRuns += 1;
+    s.mp.blitzBest = Math.max(s.mp.blitzBest, score);
+    void getPlatform().submitScore(BALANCE.boardIds.blitzDay, score);
+    void getPlatform().submitScore(BALANCE.boardIds.blitzBest, s.mp.blitzBest);
+    void flushSession();
+
+    const { width, height } = this.scale;
+    const cy = height / 2;
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    const g = this.add.graphics();
+    drawHardShadow(g, 60, cy - 300, 600, 600, 24);
+    g.fillStyle(THEME.PAPER, 1);
+    g.fillRoundedRect(60, cy - 300, 600, 600, 24);
+    g.lineStyle(5, THEME.INK, 1);
+    g.strokeRoundedRect(60, cy - 300, 600, 600, 24);
+    g.fillStyle(THEME.ACCENT, 1);
+    g.fillRoundedRect(width / 2 - 190, cy - 275, 380, 56, 14);
+    g.lineStyle(3, THEME.INK, 1);
+    g.strokeRoundedRect(width / 2 - 190, cy - 275, 380, 56, 14);
+    this.add
+      .text(width / 2, cy - 247, 'Блиц завершён', {
+        fontFamily: FONT,
+        fontSize: '30px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setStroke(INK_HEX, 3);
+    this.add
+      .text(width / 2, cy - 160, `Верно: ${this.correct} · ошибок: ${this.errors}`, {
+        fontFamily: FONT,
+        fontSize: '26px',
+        color: INK_HEX,
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(width / 2, cy - 100, `Скор: ${score}`, {
+        fontFamily: FONT,
+        fontSize: '40px',
+        color: INK_HEX,
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(width / 2, cy - 40, `Личный рекорд: ${s.mp.blitzBest}`, {
+        fontFamily: FONT,
+        fontSize: '22px',
+        color: INK_HEX,
+      })
+      .setOrigin(0.5);
+    makeButton(this, width / 2, cy + 60, 'Ещё раз', () => {
+      pendingLaunch = { blitz: true };
+      this.scene.restart();
+    }, { color: THEME.ACCENT, width: 340 });
+    makeButton(this, width / 2, cy + 145, 'В меню', () => this.scene.start('Menu'), {
+      secondary: true,
+      width: 280,
+    });
+  }
+
+  /** Дуэль: отправить свой скор и дождаться итога (план мультиплеера, фаза 2). */
+  private finishDuel(score: number): void {
+    const { width, height } = this.scale;
+    const cy = height / 2;
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    const waiting = this.add
+      .text(width / 2, cy, 'Ожидание результата соперника…', {
+        fontFamily: FONT,
+        fontSize: '26px',
+        color: INK_HEX,
+        backgroundColor: '#ffffff',
+        padding: { x: 20, y: 10 },
+      })
+      .setOrigin(0.5);
+
+    void (async () => {
+      let outcome: MatchOutcome | null = null;
+      let poll: MatchPoll | null = null;
+      if (this.matchApi && this.duelMatchId) {
+        if (!this.duelReported) {
+          this.duelOutcome = await this.matchApi.reportResult(this.duelMatchId, score);
+          this.duelReported = true;
+        }
+        outcome = this.duelOutcome;
+        // ждём результат соперника (для бота известен сразу)
+        let waited = 0;
+        while (waited < 45000) {
+          poll = await this.matchApi.pollMatch(this.duelMatchId);
+          if (poll.winner !== null) break;
+          await new Promise<void>((r) => setTimeout(r, 1000));
+          waited += 1000;
+        }
+      }
+      waiting.destroy();
+      this.showDuelResult(score, outcome, poll?.winner ?? null, poll?.ratingDelta ?? null);
+    })().catch((e) => {
+      console.error('[duel] не удалось завершить матч', e);
+      waiting.destroy();
+      this.add
+        .text(width / 2, cy, 'Ошибка сети — матч не завершён', {
+          fontFamily: FONT,
+          fontSize: '26px',
+          color: INK_HEX,
+          backgroundColor: '#ffffff',
+          padding: { x: 16, y: 8 },
+        })
+        .setOrigin(0.5);
+      makeButton(this, width / 2, cy + 90, 'В меню', () => this.scene.start('Menu'), {
+        secondary: true,
+        width: 280,
+      });
+    });
+  }
+
+  private showDuelResult(
+    score: number,
+    outcome: MatchOutcome | null,
+    winner: 'me' | 'opponent' | 'draw' | null,
+    ratingDelta: number | null,
+  ): void {
+    const { width, height } = this.scale;
+    const cy = height / 2;
+    const s = session();
+    const opponentScore = outcome?.opponentScore ?? this.opponentScore;
+    const finalWinner: 'me' | 'opponent' | 'draw' =
+      winner ?? (score > opponentScore ? 'me' : score < opponentScore ? 'opponent' : 'draw');
+    const delta = ratingDelta ?? duelDelta(score, opponentScore);
+
+    s.mp.duelRating = Math.max(0, s.mp.duelRating + delta);
+    if (finalWinner === 'me') s.mp.duelWins += 1;
+    else if (finalWinner === 'opponent') s.mp.duelLosses += 1;
+    else s.mp.duelDraws += 1;
+    void flushSession();
+
+    const title = finalWinner === 'me' ? 'ПОБЕДА' : finalWinner === 'opponent' ? 'ПОРАЖЕНИЕ' : 'НИЧЬЯ';
+
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    const g = this.add.graphics();
+    drawHardShadow(g, 60, cy - 300, 600, 600, 24);
+    g.fillStyle(THEME.PAPER, 1);
+    g.fillRoundedRect(60, cy - 300, 600, 600, 24);
+    g.lineStyle(5, THEME.INK, 1);
+    g.strokeRoundedRect(60, cy - 300, 600, 600, 24);
+    g.fillStyle(finalWinner === 'me' ? THEME.SUCCESS : finalWinner === 'opponent' ? THEME.ERROR : THEME.GOLD, 1);
+    g.fillRoundedRect(width / 2 - 190, cy - 275, 380, 56, 14);
+    g.lineStyle(3, THEME.INK, 1);
+    g.strokeRoundedRect(width / 2 - 190, cy - 275, 380, 56, 14);
+    this.add
+      .text(width / 2, cy - 247, title, {
+        fontFamily: FONT,
+        fontSize: '30px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setStroke(INK_HEX, 3);
+    this.add
+      .text(width / 2, cy - 160, `Ты: ${score} · ${this.duelOpponentName}: ${opponentScore}`, {
+        fontFamily: FONT,
+        fontSize: '27px',
+        color: INK_HEX,
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(width / 2, cy - 100, `Рейтинг: ${s.mp.duelRating} (${delta >= 0 ? '+' : ''}${delta})`, {
+        fontFamily: FONT,
+        fontSize: '26px',
+        color: INK_HEX,
+      })
+      .setOrigin(0.5);
+    makeButton(this, width / 2, cy + 60, 'В меню', () => this.scene.start('Menu'), {
+      secondary: true,
+      width: 280,
     });
   }
 }

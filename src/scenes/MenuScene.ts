@@ -5,14 +5,22 @@ import { flushSession, session, sessionRank, sessionToday } from '../game/sessio
 import { drawBooth } from '../render/booth';
 import { bulbWave } from '../render/juice';
 import { FONT, INK_HEX, THEME } from '../render/theme';
+import { sfx } from '../systems/sfx';
+import { createMatchAPI, type MatchAPI } from '../net/matchApi';
+import { queueLaunch } from './GameScene';
 import { makeButton } from '../ui/button';
 
 /**
- * Кабинет «Мульт-поп» (ГДД разд. 5–6): вывеска-логотип с лампочками, звание,
- * полосатый XP-бар, жетоны, покупки, дневная/ночная смены. Смены безлимитны.
+ * Кабинет «Мульт-поп» (ГДД разд. 5–6 + план мультиплеера): вывеска-логотип,
+ * звание и XP-бар, жетоны, смены (обычная/дневная/ночная), БЛИЦ и ДУЭЛЬ,
+ * покупки инструментов. Смены безлимитны.
  */
 export class MenuScene extends Phaser.Scene {
   private bulbs: Phaser.GameObjects.Arc[] = [];
+  private waitingUi: Phaser.GameObjects.Container | null = null;
+  private waitingEvent: Phaser.Time.TimerEvent | null = null;
+  private waitingCancelled = false;
+  private waitingMatchId: string | null = null;
 
   constructor() {
     super('Menu');
@@ -23,6 +31,9 @@ export class MenuScene extends Phaser.Scene {
     const s = session();
     const rank = sessionRank();
     this.bulbs = [];
+    this.waitingUi = null;
+    this.waitingEvent = null;
+    this.waitingCancelled = false;
 
     drawBooth(this, width, 'menu');
 
@@ -119,12 +130,14 @@ export class MenuScene extends Phaser.Scene {
     coin.fillStyle(0xffffff, 0.5);
     coin.fillCircle(-7, -8, 5);
 
+    const mp = s.mp;
     this.add
-      .text(width / 2, 452, `День ${sessionToday()} · лучшая серия: ${s.bestStreak}`, {
-        fontFamily: FONT,
-        fontSize: '20px',
-        color: INK_HEX,
-      })
+      .text(
+        width / 2,
+        452,
+        `День ${sessionToday()} · серия ${s.bestStreak} · дуэли ${mp.duelWins}-${mp.duelLosses}-${mp.duelDraws} · рейтинг ${mp.duelRating}`,
+        { fontFamily: FONT, fontSize: '19px', color: INK_HEX },
+      )
       .setOrigin(0.5);
 
     // Строки кабинета: stagger-въезд (спека §4.6)
@@ -149,19 +162,39 @@ export class MenuScene extends Phaser.Scene {
           }),
       },
       {
-        y: 622,
+        y: 580,
+        alpha: 1,
+        make: () =>
+          makeButton(this, width / 2, 580, 'Блиц · 90 секунд', () => this.startBlitz(), {
+            color: THEME.ACCENT,
+            width: 380,
+            fontSize: 26,
+          }),
+      },
+      {
+        y: 650,
+        alpha: 1,
+        make: () =>
+          makeButton(this, width / 2, 650, 'Дуэль', () => void this.startDuel(), {
+            color: THEME.ACCENT,
+            width: 380,
+            fontSize: 26,
+          }),
+      },
+      {
+        y: 720,
         alpha: !unlocked || dailyPlayed ? 0.55 : 1,
         make: () =>
           makeButton(
             this,
             width / 2,
-            622,
+            720,
             'Дневная смена',
             () => this.startDaily(),
             {
               secondary: true,
               width: 380,
-              fontSize: 28,
+              fontSize: 26,
               subtitle: !unlocked
                 ? 'со звания Дежурный'
                 : dailyPlayed
@@ -171,19 +204,19 @@ export class MenuScene extends Phaser.Scene {
           ),
       },
       {
-        y: 734,
+        y: 790,
         alpha: !unlocked || nightPlayed ? 0.55 : 1,
         make: () =>
           makeButton(
             this,
             width / 2,
-            734,
+            790,
             'Ночная смена ×1.5',
             () => this.startNight(),
             {
               secondary: true,
               width: 380,
-              fontSize: 28,
+              fontSize: 26,
               subtitle: !unlocked
                 ? 'со звания Дежурный'
                 : nightPlayed
@@ -193,39 +226,36 @@ export class MenuScene extends Phaser.Scene {
           ),
       },
       {
-        y: 846,
+        y: 868,
         alpha: s.tools.lens || s.tokens < BALANCE.lensPrice ? 0.55 : 1,
         make: () =>
-          makeButton(
-            this,
-            width / 2,
-            846,
-            s.tools.lens ? 'Лупа ✓' : `Лупа — ${BALANCE.lensPrice}`,
-            () => this.buy('lens'),
-            { secondary: true, width: 380, fontSize: 24 },
-          ),
+          makeButton(this, width / 2 - 98, 868, `Лупа ${BALANCE.lensPrice}`, () => this.buy('lens'), {
+            secondary: true,
+            width: 186,
+            fontSize: 20,
+          }),
       },
       {
-        y: 958,
+        y: 868,
         alpha: s.tools.detector || s.tokens < BALANCE.detectorPrice ? 0.55 : 1,
         make: () =>
           makeButton(
             this,
-            width / 2,
-            958,
-            s.tools.detector ? 'Детектор ✓' : `Детектор — ${BALANCE.detectorPrice}`,
+            width / 2 + 98,
+            868,
+            `Детектор ${BALANCE.detectorPrice}`,
             () => this.buy('detector'),
-            { secondary: true, width: 380, fontSize: 24 },
+            { secondary: true, width: 186, fontSize: 20 },
           ),
       },
       {
-        y: 1064,
+        y: 948,
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 1064, 'Тест платформы', () => this.scene.start('PlatformTest'), {
+          makeButton(this, width / 2, 948, 'Тест платформы', () => this.scene.start('PlatformTest'), {
             secondary: true,
             width: 280,
-            fontSize: 24,
+            fontSize: 22,
           }),
       },
     ];
@@ -256,6 +286,7 @@ export class MenuScene extends Phaser.Scene {
     if (tool === 'lens') s.tools.lens = true;
     else s.tools.detector = true;
     void flushSession();
+    sfx.purchase();
     this.scene.restart();
   }
 
@@ -275,5 +306,130 @@ export class MenuScene extends Phaser.Scene {
     s.nightPlayed = dateKey();
     void flushSession();
     this.scene.start('Game', { night: true });
+  }
+
+  /** Блиц: забег на 90 с без сервера (план мультиплеера, фаза 1). */
+  private startBlitz(): void {
+    this.scene.start('Game', { blitz: true });
+  }
+
+  /** Дуэль: сервер (два таба) или соперник-бот (план мультиплеера, фаза 2). */
+  private async startDuel(): Promise<void> {
+    if (this.waitingUi) return;
+    this.showWaiting();
+    try {
+      const api = await createMatchAPI();
+      const quick = await api.quickMatch();
+      this.waitingMatchId = quick.matchId;
+      if (quick.matched) {
+        await this.enterDuel(api);
+        return;
+      }
+      // ждём соперника: поллим состояние раз в 2 с
+      this.waitingEvent = this.time.addEvent({
+        delay: 2000,
+        loop: true,
+        callback: () => void this.pollWaiting(api),
+      });
+    } catch {
+      this.hideWaiting('Не удалось начать дуэль');
+    }
+  }
+
+
+  private async pollWaiting(api: MatchAPI): Promise<void> {
+    if (this.waitingCancelled || !this.waitingMatchId) return;
+    try {
+      const poll = await api.pollMatch(this.waitingMatchId);
+      if (poll.matched && poll.seed !== null) {
+        this.cleanupWaiting();
+        queueLaunch({
+          duel: true,
+          matchId: this.waitingMatchId,
+          seed: poll.seed,
+          durationMs: poll.durationMs ?? BALANCE.duelDurationMs,
+          startAt: poll.startAt ?? Date.now() + BALANCE.duelCountdownMs,
+          opponentName: poll.opponentName ?? 'Соперник',
+          botOpponent: api.botOpponent,
+        });
+        this.scene.start('Game');
+      }
+    } catch {
+      // сетевая ошибка — следующий тик
+    }
+  }
+
+  private async enterDuel(api: MatchAPI): Promise<void> {
+    if (this.waitingCancelled || !this.waitingMatchId) return;
+    const poll = await api.pollMatch(this.waitingMatchId);
+    if (!poll.matched || poll.seed === null) throw new Error('матч не готов');
+    this.cleanupWaiting();
+    queueLaunch({
+      duel: true,
+      matchId: this.waitingMatchId,
+      seed: poll.seed,
+      durationMs: poll.durationMs ?? BALANCE.duelDurationMs,
+      startAt: poll.startAt ?? Date.now() + BALANCE.duelCountdownMs,
+      opponentName: poll.opponentName ?? 'Соперник',
+      botOpponent: api.botOpponent,
+    });
+    this.scene.start('Game');
+  }
+
+  private showWaiting(): void {
+    const { width, height } = this.scale;
+    const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(20);
+    const plate = this.add.graphics().setDepth(20);
+    plate.fillStyle(THEME.PAPER, 1);
+    plate.fillRoundedRect(-180, -80, 360, 160, 18);
+    plate.lineStyle(4, THEME.INK, 1);
+    plate.strokeRoundedRect(-180, -80, 360, 160, 18);
+    this.waitingUi = this.add.container(width / 2, height / 2, [dim, plate]).setDepth(20);
+    this.waitingUi.add(
+      this.add
+        .text(0, -40, 'Ожидание соперника…', { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
+        .setOrigin(0.5),
+    );
+    this.waitingUi.add(
+      this.add
+        .text(0, 0, 'Открой игру во второй вкладке', { fontFamily: FONT, fontSize: '15px', color: INK_HEX })
+        .setOrigin(0.5)
+        .setAlpha(0.75),
+    );
+    const cancel = makeButton(this, 0, 50, 'Отмена', () => this.cancelWaiting(), {
+      secondary: true,
+      width: 260,
+      fontSize: 22,
+    });
+    cancel.setDepth(20);
+    this.waitingUi.add(cancel);
+  }
+
+  private cleanupWaiting(): void {
+    this.waitingEvent?.remove(false);
+    this.waitingEvent = null;
+    this.waitingUi?.destroy();
+    this.waitingUi = null;
+  }
+
+  private cancelWaiting(): void {
+    this.waitingCancelled = true;
+    this.cleanupWaiting();
+    sfx.tap();
+  }
+
+  private hideWaiting(message: string): void {
+    this.cleanupWaiting();
+    const t = this.add
+      .text(this.scale.width / 2, this.scale.height / 2, message, {
+        fontFamily: FONT,
+        fontSize: '22px',
+        color: INK_HEX,
+        backgroundColor: '#ffffff',
+        padding: { x: 16, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setDepth(20);
+    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 300, onComplete: () => t.destroy() });
   }
 }

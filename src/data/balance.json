@@ -19,13 +19,41 @@
   "nightSalaryMult": 1.5,
   "boardIds": {
     "streak": "bestStreak",
-    "daily": "dailyShift"
+    "daily": "dailyShift",
+    "blitzDay": "blitzDay",
+    "blitzBest": "blitzBest"
   },
   "ranks": [
-    { "xp": 0, "title": "Стажёр" },
-    { "xp": 300, "title": "Дежурный" },
-    { "xp": 900, "title": "Старший дежурный" },
-    { "xp": 2000, "title": "Инспектор" },
-    { "xp": 4000, "title": "Главный инспектор" }
-  ]
+    {
+      "xp": 0,
+      "title": "Стажёр"
+    },
+    {
+      "xp": 300,
+      "title": "Дежурный"
+    },
+    {
+      "xp": 900,
+      "title": "Старший дежурный"
+    },
+    {
+      "xp": 2000,
+      "title": "Инспектор"
+    },
+    {
+      "xp": 4000,
+      "title": "Главный инспектор"
+    }
+  ],
+  "blitzDurationMs": 90000,
+  "blitzMistakePenaltyMs": 5000,
+  "blitzRewardMs": 15000,
+  "blitzApps": 40,
+  "duelApps": 40,
+  "duelDurationMs": 90000,
+  "duelCountdownMs": 3000,
+  "duelStartRating": 1000,
+  "duelWinDelta": 8,
+  "duelLossDelta": -6,
+  "duelDrawDelta": 0
 }

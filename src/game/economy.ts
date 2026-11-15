@@ -23,6 +23,12 @@ export function nightReward(base: number): number {
   return Math.ceil(base * BALANCE.nightSalaryMult);
 }
 
+/** Дельта дуэльного рейтинга (план мультиплеера, фаза 2): победа/поражение/ничья. */
+export function duelDelta(myScore: number, opponentScore: number): number {
+  if (myScore === opponentScore) return BALANCE.duelDrawDelta;
+  return myScore > opponentScore ? BALANCE.duelWinDelta : BALANCE.duelLossDelta;
+}
+
 export function rankFor(xp: number): { index: number; title: string; nextXp: number | null } {
   const ranks = BALANCE.ranks;
   let index = 0;
