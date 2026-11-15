@@ -26,7 +26,7 @@ describe('соперник-бот (LocalMatchAPI)', () => {
   it('счёт бота растёт со временем и ограничен потолком', async () => {
     const api = new LocalMatchAPI();
     const { matchId } = await api.quickMatch();
-    const m = api['matches'].get(matchId)!;
+    const m = LocalMatchAPI['matches'].get(matchId)!;
     const early = api['botScoreAt'](m, 1000);
     const mid = api['botScoreAt'](m, 45000);
     const end = api['botFinal'](m);
@@ -39,7 +39,7 @@ describe('соперник-бот (LocalMatchAPI)', () => {
   it('reportResult: победа над ботом даёт +8, поражение −6', async () => {
     const api = new LocalMatchAPI();
     const { matchId } = await api.quickMatch();
-    const m = api['matches'].get(matchId)!;
+    const m = LocalMatchAPI['matches'].get(matchId)!;
     const bot = api['botFinal'](m);
 
     const win = await api.reportResult(matchId, bot + 10);
@@ -49,15 +49,15 @@ describe('соперник-бот (LocalMatchAPI)', () => {
 
     const api2 = new LocalMatchAPI();
     const { matchId: id2 } = await api2.quickMatch();
-    const bot2 = api2['botFinal'](m2Of(api2, id2));
+    const bot2 = api2['botFinal'](m2Of(id2));
     const loss = await api2.reportResult(id2, Math.max(0, bot2 - 10));
     expect(loss.winner).toBe('opponent');
     expect(loss.ratingDelta).toBe(-6);
   });
 
   // бот-финал вычисляется из закрытого состояния — хелпер для теста
-  function m2Of(api: LocalMatchAPI, id: string) {
-    return api['matches'].get(id)!;
+  function m2Of(id: string) {
+    return LocalMatchAPI['matches'].get(id)!;
   }
 });
 

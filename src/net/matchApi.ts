@@ -93,7 +93,8 @@ interface LocalMatch {
 export class LocalMatchAPI implements MatchAPI {
   readonly botOpponent = true;
 
-  private matches = new Map<string, LocalMatch>();
+  /** Матчи общие для всех экземпляров API: матч создаётся в кабинете, играется в GameScene. */
+  private static matches = new Map<string, LocalMatch>();
 
   async probe(): Promise<boolean> {
     return true;
@@ -111,7 +112,7 @@ export class LocalMatchAPI implements MatchAPI {
       perAppMs.push(t);
       correct.push(rng() < 0.8);
     }
-    this.matches.set(matchId, {
+    LocalMatchAPI.matches.set(matchId, {
       seed,
       durationMs: BALANCE.duelDurationMs,
       startAt: Date.now() + BALANCE.duelCountdownMs,
@@ -124,7 +125,7 @@ export class LocalMatchAPI implements MatchAPI {
   }
 
   async pollMatch(matchId: string): Promise<MatchPoll> {
-    const m = this.matches.get(matchId);
+    const m = LocalMatchAPI.matches.get(matchId);
     if (!m) throw new Error(`матч ${matchId} не найден`);
     const winner = this.winnerOf(m);
     return {
@@ -144,7 +145,7 @@ export class LocalMatchAPI implements MatchAPI {
   }
 
   async reportResult(matchId: string, score: number): Promise<MatchOutcome> {
-    const m = this.matches.get(matchId);
+    const m = LocalMatchAPI.matches.get(matchId);
     if (!m) throw new Error(`матч ${matchId} не найден`);
     m.myScore = score;
     const opponentScore = this.botFinal(m);

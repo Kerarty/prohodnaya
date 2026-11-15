@@ -269,7 +269,7 @@ export class GameScene extends Phaser.Scene {
       { color: THEME.ERROR, width: 330 },
     );
 
-    if (s.tools.detector) this.createDetectorButton(width);
+    if (s.tools.detector && this.runMode === 'shift') this.createDetectorButton(width);
 
     // выход в кабинет из любого режима (спека: «закончить игру»)
     makeButton(this, 44, 40, 'Меню', () => this.exitToMenu(), {
@@ -360,7 +360,8 @@ export class GameScene extends Phaser.Scene {
     this.runEndAt = this.time.now + this.runDuration;
     this.countdownText?.destroy();
     this.countdownText = null;
-    if (!this.busy) this.setButtonsEnabled(true);
+    // вход гостя завершился ещё во время отсчёта — кнопки обязаны включиться
+    this.setButtonsEnabled(true);
   }
 
   private updateCounter(remainingMs?: number): void {
@@ -571,7 +572,7 @@ export class GameScene extends Phaser.Scene {
     const ok = decision === app.expected;
     this.stopPatience();
     this.setButtonsEnabled(false);
-    this.card?.showStamp(ok);
+    this.card?.showStamp(decision === 'approve'); // штамп = решение игрока
     sfx.stamp();
 
     if (ok) {
