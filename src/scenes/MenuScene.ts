@@ -67,7 +67,7 @@ export class MenuScene extends Phaser.Scene {
 
     // Звание + XP-бар с полосатой заливкой (спека §4.6)
     this.add
-      .text(width / 2, 268, rank.title, {
+      .text(width / 2, 235, rank.title, {
         fontFamily: FONT,
         fontSize: '30px',
         color: INK_HEX,
@@ -77,7 +77,7 @@ export class MenuScene extends Phaser.Scene {
 
     const barW = 420;
     const barX = width / 2 - barW / 2;
-    const barY = 296;
+    const barY = 267;
     const bar = this.add.graphics();
     bar.fillStyle(THEME.NICHE, 1);
     bar.fillRoundedRect(barX, barY, barW, 20, 10);
@@ -96,7 +96,7 @@ export class MenuScene extends Phaser.Scene {
         }
       }
       this.add
-        .text(width / 2, 338, `${s.xp} XP · до «${BALANCE.ranks[rank.index + 1].title}» ${rank.nextXp - s.xp} XP`, {
+        .text(width / 2, 303, `${s.xp} XP · до «${BALANCE.ranks[rank.index + 1].title}» ${rank.nextXp - s.xp} XP`, {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
@@ -104,7 +104,7 @@ export class MenuScene extends Phaser.Scene {
         .setOrigin(0.5);
     } else {
       this.add
-        .text(width / 2, 338, `${s.xp} XP · максимальное звание`, {
+        .text(width / 2, 303, `${s.xp} XP · максимальное звание`, {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
@@ -114,7 +114,7 @@ export class MenuScene extends Phaser.Scene {
 
     // Жетоны: иконка-монета с бликом + число
     const tokens = this.add
-      .text(width / 2 + 34, 404, `${s.tokens}`, {
+      .text(width / 2 + 34, 370, `${s.tokens}`, {
         fontFamily: FONT,
         fontSize: '44px',
         color: INK_HEX,
@@ -122,7 +122,7 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const coin = this.add.graphics();
-    coin.setPosition(width / 2 + 8 - tokens.width / 2, 404);
+    coin.setPosition(width / 2 + 8 - tokens.width / 2, 370);
     coin.fillStyle(THEME.GOLD, 1);
     coin.fillCircle(0, 0, 22);
     coin.lineStyle(4, THEME.INK, 1);
@@ -136,7 +136,7 @@ export class MenuScene extends Phaser.Scene {
     this.add
       .text(
         width / 2,
-        452,
+        412,
         `День ${sessionToday()} · серия ${s.bestStreak} · дуэли ${mp.duelWins}-${mp.duelLosses}-${mp.duelDraws} · рейтинг ${mp.duelRating}`,
         { fontFamily: FONT, fontSize: '19px', color: INK_HEX },
       )
@@ -158,7 +158,7 @@ export class MenuScene extends Phaser.Scene {
         y: 510,
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 510, shiftLabel, () => this.scene.start('Game'), {
+          makeButton(this, width / 2, 500, shiftLabel, () => this.scene.start('Game'), {
             color: THEME.ACCENT,
             width: 380,
           }),
@@ -167,20 +167,22 @@ export class MenuScene extends Phaser.Scene {
         y: 580,
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 580, 'Блиц · 90 секунд', () => this.startBlitz(), {
+          makeButton(this, width / 2, 592, 'Блиц · 90 секунд', () => this.startBlitz(), {
             color: THEME.ACCENT,
             width: 380,
-            fontSize: 26,
+            height: 72,
+            fontSize: 24,
           }),
       },
       {
         y: 650,
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 650, 'Дуэль', () => void this.startDuel(), {
+          makeButton(this, width / 2, 676, 'Дуэль', () => void this.startDuel(), {
             color: THEME.ACCENT,
             width: 380,
-            fontSize: 26,
+            height: 72,
+            fontSize: 24,
           }),
       },
       {
@@ -190,13 +192,14 @@ export class MenuScene extends Phaser.Scene {
           makeButton(
             this,
             width / 2,
-            720,
+            760,
             'Дневная смена',
             () => this.startDaily(),
             {
               secondary: true,
               width: 380,
-              fontSize: 26,
+              height: 72,
+              fontSize: 24,
               subtitle: !unlocked
                 ? 'со звания Дежурный'
                 : dailyPlayed
@@ -212,13 +215,14 @@ export class MenuScene extends Phaser.Scene {
           makeButton(
             this,
             width / 2,
-            790,
+            844,
             'Ночная смена ×1.5',
             () => this.startNight(),
             {
               secondary: true,
               width: 380,
-              fontSize: 26,
+              height: 72,
+              fontSize: 24,
               subtitle: !unlocked
                 ? 'со звания Дежурный'
                 : nightPlayed
@@ -231,10 +235,11 @@ export class MenuScene extends Phaser.Scene {
         y: 868,
         alpha: s.tools.lens || s.tokens < BALANCE.lensPrice ? 0.55 : 1,
         make: () =>
-          makeButton(this, width / 2 - 98, 868, `Лупа ${BALANCE.lensPrice}`, () => this.buy('lens'), {
+          makeButton(this, width / 2 - 98, 928, `Лупа ${BALANCE.lensPrice}`, () => this.buy('lens'), {
             secondary: true,
             width: 186,
-            fontSize: 20,
+            height: 72,
+            fontSize: 18,
           }),
       },
       {
@@ -244,19 +249,20 @@ export class MenuScene extends Phaser.Scene {
           makeButton(
             this,
             width / 2 + 98,
-            868,
+            1012,
             `Детектор ${BALANCE.detectorPrice}`,
             () => this.buy('detector'),
-            { secondary: true, width: 186, fontSize: 20 },
+            { secondary: true, width: 186, height: 72, fontSize: 18 },
           ),
       },
       {
-        y: 948,
+        y: 1096,
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2 - 98, 948, 'Тест платформы', () => this.scene.start('PlatformTest'), {
+          makeButton(this, width / 2 - 98, 1004, 'Тест платформы', () => this.scene.start('PlatformTest'), {
             secondary: true,
             width: 186,
+            height: 72,
             fontSize: 18,
           }),
       },
@@ -264,9 +270,10 @@ export class MenuScene extends Phaser.Scene {
         y: 948,
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2 + 98, 948, 'Настройки', () => this.showSettings(), {
+          makeButton(this, width / 2 + 98, 1004, 'Настройки', () => this.showSettings(), {
             secondary: true,
             width: 186,
+            height: 72,
             fontSize: 18,
           }),
       },
