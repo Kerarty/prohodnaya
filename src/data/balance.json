@@ -1,0 +1,31 @@
+{
+  "salary": 11,
+  "speedBonus": 1,
+  "speedBonusMs": 10000,
+  "cleanBonus": 50,
+  "xpPerCorrect": 5,
+  "xpCleanShift": 50,
+  "lensPrice": 300,
+  "detectorPrice": 500,
+  "patienceMs": 40000,
+  "maxErrors": 3,
+  "detectorFreeCharges": 1,
+  "detectorAdCharges": 2,
+  "dailyScoreCorrect": 10,
+  "dailyScoreFast": 1,
+  "dailyScoreClean": 50,
+  "dailyApps": 12,
+  "nightApps": 12,
+  "nightSalaryMult": 1.5,
+  "boardIds": {
+    "streak": "bestStreak",
+    "daily": "dailyShift"
+  },
+  "ranks": [
+    { "xp": 0, "title": "Стажёр" },
+    { "xp": 300, "title": "Дежурный" },
+    { "xp": 900, "title": "Старший дежурный" },
+    { "xp": 2000, "title": "Инспектор" },
+    { "xp": 4000, "title": "Главный инспектор" }
+  ]
+}
