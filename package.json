@@ -1,0 +1,29 @@
+{
+  "name": "prohodnaya",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Проходная — казуальная игра для Яндекс Игр (Phaser 3 + TypeScript + Vite)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "dist": "npm run build && powershell -NoProfile -Command \"Compress-Archive -Path 'dist/*' -DestinationPath 'prohodnaya-yandex.zip' -Force\"",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write src index.html"
+  },
+  "dependencies": {
+    "phaser": "^3.85.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.0.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.20.0",
+    "vite": "^7.0.0",
+    "vitest": "^3.0.0"
+  }
+}
