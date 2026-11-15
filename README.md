@@ -1,5 +1,7 @@
 # Проходная
 
+**Играть в браузере:** [kerarty.github.io/prohodnaya](https://kerarty.github.io/prohodnaya/)
+
 ![Кабинет дежурного](docs/images/01-kabinet.png)
 
 Моя первая законченная игра — казуальный «инспектор-сим» для платформы
