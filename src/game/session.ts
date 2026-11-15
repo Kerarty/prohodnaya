@@ -1,6 +1,6 @@
 import type { PlatformAPI } from '../platform';
 import { rankFor } from './economy';
-import { epochDays, normalizeSave, toPlatformSave } from './save';
+import { defaultSave, epochDays, normalizeSave, toPlatformSave } from './save';
 import type { SaveDataV1 } from './save';
 
 let platform: PlatformAPI | null = null;
@@ -36,6 +36,14 @@ export function session(): SaveDataV1 {
 /** Игровой день от первого запуска (ГДД разд. 3.1). */
 export function sessionToday(): number {
   return epochDays() - session().todayBase + 1;
+}
+
+/** Сброс прогресса до дефолтов (настройки) с немедленным сохранением. */
+export function resetProgress(): void {
+  if (!data) return;
+  const fresh = defaultSave(epochDays());
+  Object.assign(data, fresh);
+  void flushSession();
 }
 
 export function sessionRank(): { index: number; title: string; nextXp: number | null } {

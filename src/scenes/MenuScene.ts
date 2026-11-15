@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { BALANCE } from '../game/economy';
 import { dateKey } from '../game/save';
-import { flushSession, session, sessionRank, sessionToday } from '../game/session';
+import { flushSession, resetProgress, session, sessionRank, sessionToday } from '../game/session';
 import { drawBooth } from '../render/booth';
 import { bulbWave } from '../render/juice';
 import { FONT, INK_HEX, THEME } from '../render/theme';
@@ -21,6 +21,8 @@ export class MenuScene extends Phaser.Scene {
   private waitingEvent: Phaser.Time.TimerEvent | null = null;
   private waitingCancelled = false;
   private waitingMatchId: string | null = null;
+  private settingsUi: Phaser.GameObjects.Container | null = null;
+  private resetArmed = false;
 
   constructor() {
     super('Menu');
@@ -252,10 +254,20 @@ export class MenuScene extends Phaser.Scene {
         y: 948,
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 948, 'Тест платформы', () => this.scene.start('PlatformTest'), {
+          makeButton(this, width / 2 - 98, 948, 'Тест платформы', () => this.scene.start('PlatformTest'), {
             secondary: true,
-            width: 280,
-            fontSize: 22,
+            width: 186,
+            fontSize: 18,
+          }),
+      },
+      {
+        y: 948,
+        alpha: 1,
+        make: () =>
+          makeButton(this, width / 2 + 98, 948, 'Настройки', () => this.showSettings(), {
+            secondary: true,
+            width: 186,
+            fontSize: 18,
           }),
       },
     ];
@@ -374,6 +386,87 @@ export class MenuScene extends Phaser.Scene {
       botOpponent: api.botOpponent,
     });
     this.scene.start('Game');
+  }
+
+  /** Настройки: звук, сброс прогресса (двухшаговое подтверждение), версия. */
+  private showSettings(): void {
+    if (this.settingsUi) return;
+    this.resetArmed = false;
+    const { width, height } = this.scale;
+    const s = session();
+
+    const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(20);
+    const plate = this.add.graphics().setDepth(20);
+    plate.fillStyle(THEME.PAPER, 1);
+    plate.fillRoundedRect(-250, -210, 500, 420, 20);
+    plate.lineStyle(5, THEME.INK, 1);
+    plate.strokeRoundedRect(-250, -210, 500, 420, 20);
+    plate.fillStyle(THEME.ACCENT, 1);
+    plate.fillRoundedRect(-140, -196, 280, 44, 12);
+    plate.lineStyle(3, THEME.INK, 1);
+    plate.strokeRoundedRect(-140, -196, 280, 44, 12);
+
+    const title = this.add
+      .text(0, -174, 'Настройки', { fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setStroke(INK_HEX, 3);
+
+    const soundLabel = `Звук: ${s.soundOn ? 'вкл' : 'выкл'}`;
+    const soundBtn = makeButton(this, 0, -90, soundLabel, () => {
+      session().soundOn = !session().soundOn;
+      sfx.setMuted(!session().soundOn);
+      void flushSession();
+      if (session().soundOn) sfx.tap();
+      this.rebuildSettings();
+    }, { secondary: true, width: 380, fontSize: 24 });
+    if (!session().soundOn) soundBtn.setAlpha(0.7);
+
+    const resetLabel = this.resetArmed ? 'Точно сбросить?' : 'Сбросить прогресс';
+    const resetBtn = makeButton(this, 0, 0, resetLabel, () => this.resetFlow(), {
+      secondary: true,
+      width: 380,
+      fontSize: 24,
+      color: this.resetArmed ? THEME.ERROR : undefined,
+    });
+
+    const version = this.add
+      .text(0, 90, 'Проходная · v0.1.0', { fontFamily: FONT, fontSize: '16px', color: INK_HEX })
+      .setOrigin(0.5)
+      .setAlpha(0.6);
+
+    const back = makeButton(this, 0, 160, 'Назад', () => this.closeSettings(), {
+      secondary: true,
+      width: 300,
+      fontSize: 24,
+    });
+
+    this.settingsUi = this.add
+      .container(width / 2, height / 2, [dim, plate, title, soundBtn, resetBtn, version, back])
+      .setDepth(20);
+  }
+
+  private rebuildSettings(): void {
+    this.settingsUi?.destroy();
+    this.settingsUi = null;
+    this.showSettings();
+  }
+
+  private resetFlow(): void {
+    if (!this.resetArmed) {
+      this.resetArmed = true;
+      this.rebuildSettings();
+      return;
+    }
+    resetProgress();
+    this.closeSettings();
+    this.scene.restart();
+  }
+
+  private closeSettings(): void {
+    this.settingsUi?.destroy();
+    this.settingsUi = null;
+    this.resetArmed = false;
+    sfx.tap();
   }
 
   private showWaiting(): void {

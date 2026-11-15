@@ -271,6 +271,14 @@ export class GameScene extends Phaser.Scene {
 
     if (s.tools.detector) this.createDetectorButton(width);
 
+    // выход в кабинет из любого режима (спека: «закончить игру»)
+    makeButton(this, 44, 40, 'Меню', () => this.exitToMenu(), {
+      secondary: true,
+      width: 72,
+      height: 72,
+      fontSize: 16,
+    });
+
     // Блиц стартует сразу; дуэль — по startAt (отсчёт в onSceneUpdate)
     if (this.runMode === 'blitz') {
       this.runStarted = true;
@@ -323,6 +331,28 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (remaining <= 0) this.endRun();
+  }
+
+  /** «Закончить игру»: выход в кабинет с честными последствиями для каждого режима. */
+  private exitToMenu(): void {
+    if (this.runEnded) return; // на экранах результатов есть свои кнопки
+    const s = session();
+    if (this.runMode === 'shift') {
+      // прервать смену: выплата за верные сохраняется (ГДД разд. 5)
+      s.tokens += this.earnedTokens;
+      s.xp += this.earnedXp;
+      s.currentShift = null;
+      void flushSession();
+    } else if (this.runMode === 'blitz') {
+      // заброс блица досрочно: без результата и лидербордов
+    } else {
+      // выход из дуэли = техническое поражение (план мультиплеера, фаза 2)
+      s.mp.duelLosses += 1;
+      s.mp.duelRating = Math.max(0, s.mp.duelRating + BALANCE.duelLossDelta);
+      void flushSession();
+    }
+    s.currentShift = this.runMode === 'shift' ? s.currentShift : null;
+    this.scene.start('Menu');
   }
 
   private startRun(): void {

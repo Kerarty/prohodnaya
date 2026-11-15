@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { initPlatform } from './platform';
-import { flushSession, initSession, loadSession } from './game/session';
+import { flushSession, initSession, loadSession, session } from './game/session';
 import { sfx } from './systems/sfx';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
@@ -49,6 +49,7 @@ async function bootstrap(): Promise<void> {
 
   initSession(platform);
   await loadSession();
+  sfx.setMuted(!session().soundOn); // настройка звука из сейва
 
   // Последняя попытка сохранить прогресс при уходе со страницы (не гарантирована)
   window.addEventListener('pagehide', () => {

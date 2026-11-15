@@ -47,6 +47,8 @@ export interface SaveDataV1 {
   /** Ключ даты последней ночной смены (1 в день, ГДД разд. 7). */
   nightPlayed: string | null;
   mp: MultiplayerSave;
+  /** Звуковые эффекты включены (настройки). */
+  soundOn: boolean;
 }
 
 export function epochDays(now = Date.now()): number {
@@ -81,6 +83,7 @@ export function defaultSave(todayBase: number): SaveDataV1 {
     dailyPlayed: null,
     nightPlayed: null,
     mp: { blitzBest: 0, blitzRuns: 0, duelWins: 0, duelLosses: 0, duelDraws: 0, duelRating: 1000 },
+    soundOn: true,
   };
 }
 
@@ -130,6 +133,7 @@ export function normalizeSave(raw: unknown, todayBase: number): SaveDataV1 {
     dailyPlayed: typeof r.dailyPlayed === 'string' ? r.dailyPlayed : null,
     nightPlayed: typeof r.nightPlayed === 'string' ? r.nightPlayed : null,
     mp: readMp(r.mp),
+    soundOn: bool(r.soundOn, true),
   };
 }
 
