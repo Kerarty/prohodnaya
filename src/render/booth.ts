@@ -18,25 +18,37 @@ export function drawBooth(scene: Phaser.Scene, width: number, mode: 'game' | 'me
   // Стена и пол
   g.fillStyle(THEME.BG_WALL, 1);
   g.fillRect(0, 0, width, 820);
+  // плинтус у стыка
+  g.fillStyle(THEME.INK, 0.06);
+  g.fillRect(0, 800, width, 20);
   g.fillStyle(THEME.BG_FLOOR, 1);
   g.fillRect(0, 820, width, 460);
   g.lineStyle(3, THEME.INK, 0.12);
   g.lineBetween(0, 820, width, 820);
 
-  // Облака на стене
-  g.fillStyle(THEME.CLOUD, 0.7);
-  g.fillRoundedRect(70, 300, 90, 28, 14);
-  g.fillRoundedRect(575, 270, 90, 28, 14);
-  g.fillRoundedRect(85, 465, 90, 28, 14);
+  // Облака на стене — два «пуха» на облако
+  g.fillStyle(THEME.CLOUD, 0.75);
+  g.fillRoundedRect(70, 302, 90, 26, 13);
+  g.fillRoundedRect(92, 288, 56, 22, 11);
+  g.fillRoundedRect(575, 272, 90, 26, 13);
+  g.fillRoundedRect(598, 258, 56, 22, 11);
+  g.fillRoundedRect(85, 467, 90, 26, 13);
+  g.fillRoundedRect(108, 453, 56, 22, 11);
 
   let guestShadow: Phaser.GameObjects.Graphics | null = null;
 
   if (mode === 'game') {
-    // Ниша гостя
+    // Ниша гостя + стойки-косяки по краям (структура проходной)
     g.fillStyle(THEME.NICHE, 1);
     g.fillRoundedRect(160, 252, 400, 328, 24);
     g.lineStyle(4, THEME.INK, 1);
     g.strokeRoundedRect(160, 252, 400, 328, 24);
+    g.fillStyle(THEME.PANEL, 1);
+    g.fillRoundedRect(146, 246, 26, 340, 10);
+    g.lineStyle(4, THEME.INK, 1);
+    g.strokeRoundedRect(146, 246, 26, 340, 10);
+    g.fillRoundedRect(548, 246, 26, 340, 10);
+    g.strokeRoundedRect(548, 246, 26, 340, 10);
     g.fillStyle(THEME.NICHE_FLOOR, 1);
     g.fillRoundedRect(176, 440, 368, 124, 16);
     g.lineStyle(3, THEME.INK, 0.15);
@@ -59,6 +71,10 @@ export function drawBooth(scene: Phaser.Scene, width: number, mode: 'game' | 'me
   // Стойка: фронтон + столешница
   g.fillStyle(THEME.COUNTER_BODY, 1);
   g.fillRect(0, 1060, width, 220);
+  // фактура фронтона
+  g.lineStyle(3, THEME.INK, 0.08);
+  g.lineBetween(0, 1120, width, 1120);
+  g.lineBetween(0, 1170, width, 1170);
   g.fillStyle(THEME.COUNTER_TOP, 1);
   g.fillRoundedRect(0, 1032, width, 28, 6);
   g.lineStyle(4, THEME.INK, 1);

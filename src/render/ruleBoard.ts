@@ -52,14 +52,18 @@ export function drawRuleBoard(
 
   rules.forEach((rule, i) => {
     const y = -half + 92 + i * rowH;
-    board.add(scene.add.circle(-width / 2 + 40, y, 5, THEME.ACCENT));
+    // подложка ряда — структурирует список
+    const rowBg = scene.add.graphics();
+    rowBg.fillStyle(THEME.NICHE, 0.55);
+    rowBg.fillRoundedRect(-width / 2 + 14, y - 23, width - 28, 46, 12);
+    board.add(rowBg);
     board.add(
       scene.add
-        .text(-width / 2 + 60, y, rule.text, {
+        .text(-width / 2 + 34, y, rule.text, {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
-          wordWrap: { width: 340 },
+          wordWrap: { width: 330 },
         })
         .setOrigin(0, 0.5),
     );
