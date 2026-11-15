@@ -156,13 +156,18 @@ export class MenuScene extends Phaser.Scene {
             this,
             width / 2,
             622,
-            !unlocked
-              ? 'Дневная смена (со звания Дежурный)'
-              : dailyPlayed
-                ? 'Дневная смена (завтра)'
-                : 'Дневная смена',
+            'Дневная смена',
             () => this.startDaily(),
-            { secondary: true, width: 380, fontSize: 20 },
+            {
+              secondary: true,
+              width: 380,
+              fontSize: 28,
+              subtitle: !unlocked
+                ? 'со звания Дежурный'
+                : dailyPlayed
+                  ? 'уже сыграна — завтра'
+                  : undefined,
+            },
           ),
       },
       {
@@ -173,13 +178,18 @@ export class MenuScene extends Phaser.Scene {
             this,
             width / 2,
             734,
-            !unlocked
-              ? 'Ночная смена (со звания Дежурный)'
-              : nightPlayed
-                ? 'Ночная смена (завтра)'
-                : 'Ночная смена ×1.5',
+            'Ночная смена ×1.5',
             () => this.startNight(),
-            { secondary: true, width: 380, fontSize: 20 },
+            {
+              secondary: true,
+              width: 380,
+              fontSize: 28,
+              subtitle: !unlocked
+                ? 'со звания Дежурный'
+                : nightPlayed
+                  ? 'уже сыграна — завтра'
+                  : undefined,
+            },
           ),
       },
       {
