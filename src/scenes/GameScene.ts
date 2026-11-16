@@ -10,6 +10,7 @@ import {
   duelDelta,
   nightReward,
   rankFor,
+  shouldShowInterstitial,
 } from '../game/economy';
 import { generateShift } from '../game/generation';
 import { newShiftSeed } from '../game/rng';
@@ -444,11 +445,36 @@ export class GameScene extends Phaser.Scene {
     this.setButtonsEnabled(false);
     sfx.setMuted(true);
     try {
-      return await getPlatform().showRewarded(onReward);
+      const result = await getPlatform().showRewarded(onReward);
+      if (result === 'shown') {
+        // Минимальный интервал interstitial отсчитывается и от rewarded (ГДД разд. 7)
+        session().ad.lastAdAt = Date.now();
+        void flushSession();
+      }
+      return result;
     } finally {
-      sfx.setMuted(!session().soundOn); // возвращаем настройку игрока, а не просто «включить»
+      sfx.setMuted(!session().soundOn);
       if (!wasBusy) this.setButtonsEnabled(true);
     }
+  }
+
+  /** Выход в кабинет с экрана результата — единственное место interstitial (ГДД разд. 7). */
+  private exitToMenuAfterResults(): void {
+    const s = session();
+    if (!shouldShowInterstitial(s.ad, this.shift, Date.now())) {
+      this.scene.start('Menu');
+      return;
+    }
+    s.ad.lastAdAt = Date.now();
+    s.ad.shiftsSince = 0;
+    void flushSession();
+    sfx.setMuted(true);
+    void getPlatform()
+      .showInterstitial()
+      .finally(() => {
+        sfx.setMuted(!s.soundOn);
+        this.scene.start('Menu');
+      });
   }
 
   private useDetector(): void {
@@ -886,6 +912,7 @@ export class GameScene extends Phaser.Scene {
     s.tokens += this.earnedTokens;
     s.xp += this.earnedXp;
     s.currentShift = null;
+    s.ad.shiftsSince += 1;
     void getPlatform().submitScore(BOARD_IDS.streak, s.bestStreak);
     void flushSession();
     this.resultShown = true;
@@ -930,7 +957,7 @@ export class GameScene extends Phaser.Scene {
       color: THEME.SUCCESS,
       width: 320,
     });
-    makeButton(this, width / 2, cy + 145, 'В меню', () => this.scene.start('Menu'), {
+    makeButton(this, width / 2, cy + 145, 'В меню', () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });
@@ -948,8 +975,12 @@ export class GameScene extends Phaser.Scene {
     s.xp += this.finishXpTotal;
     s.currentShift = null;
     s.shiftNumber += 1;
+    s.ad.shiftsSince += 1; // для «не чаще 1 interstitial на 3 смены» (ГДД разд. 7)
 
     void getPlatform().submitScore(BOARD_IDS.streak, s.bestStreak);
+    if (this.isDaily) {
+      void getPlatform().submitScore(BOARD_IDS.daily, dailyScore(this.correct, this.fastCount, this.errors));
+    }
     void flushSession();
     this.resultShown = true;
 
@@ -1040,7 +1071,7 @@ export class GameScene extends Phaser.Scene {
       color: THEME.ACCENT,
       width: 340,
     });
-    makeButton(this, width / 2, cy + 305 - lift, 'В меню', () => this.scene.start('Menu'), {
+    makeButton(this, width / 2, cy + 305 - lift, 'В меню', () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });
@@ -1135,7 +1166,7 @@ export class GameScene extends Phaser.Scene {
       pendingLaunch = { blitz: true };
       this.scene.restart();
     }, { color: THEME.ACCENT, width: 340 });
-    makeButton(this, width / 2, cy + 145, 'В меню', () => this.scene.start('Menu'), {
+    makeButton(this, width / 2, cy + 145, 'В меню', () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });
@@ -1252,7 +1283,7 @@ export class GameScene extends Phaser.Scene {
         color: INK_HEX,
       })
       .setOrigin(0.5);
-    makeButton(this, width / 2, cy + 60, 'В меню', () => this.scene.start('Menu'), {
+    makeButton(this, width / 2, cy + 60, 'В меню', () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });

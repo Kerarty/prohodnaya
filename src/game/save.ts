@@ -30,6 +30,14 @@ export interface MultiplayerSave {
   duelRating: number;
 }
 
+/** Состояние рекламы для interstitial-политики (ГДД разд. 7). */
+export interface AdState {
+  /** Время последнего показа любой рекламы (interstitial и rewarded). */
+  lastAdAt: number;
+  /** Завершённых смен с момента последнего interstitial. */
+  shiftsSince: number;
+}
+
 /** Схема облачного сейва v1 (ГДД разд. 6). ~1 КБ — далеко до лимита 200 КБ. */
 export interface SaveDataV1 {
   version: 1;
@@ -49,10 +57,14 @@ export interface SaveDataV1 {
   mp: MultiplayerSave;
   /** Звуковые эффекты включены (настройки). */
   soundOn: boolean;
+  /** Рекламные счётчики (interstitial-политика). */
+  ad: AdState;
 }
 
-export function epochDays(now = Date.now()): number {
-  return Math.floor(now / 86_400_000);
+/** Локальные epoch-дни: границы суток по таймзоне игрока — согласованы с dateKey()
+ * (UTC-дни переключались в 03:00 МСК и рассинхронизировались с dailyPlayed). */
+export function epochDays(now = Date.now(), tzOffsetMin = new Date(now).getTimezoneOffset()): number {
+  return Math.floor((now - tzOffsetMin * 60_000) / 86_400_000);
 }
 
 /** Локальный ключ календарного дня — флаг дневной смены. */
@@ -84,6 +96,7 @@ export function defaultSave(todayBase: number): SaveDataV1 {
     nightPlayed: null,
     mp: { blitzBest: 0, blitzRuns: 0, duelWins: 0, duelLosses: 0, duelDraws: 0, duelRating: 1000 },
     soundOn: true,
+    ad: { lastAdAt: 0, shiftsSince: 0 },
   };
 }
 
@@ -134,6 +147,7 @@ export function normalizeSave(raw: unknown, todayBase: number): SaveDataV1 {
     nightPlayed: typeof r.nightPlayed === 'string' ? r.nightPlayed : null,
     mp: readMp(r.mp),
     soundOn: bool(r.soundOn, true),
+    ad: readAd(r.ad),
   };
 }
 
@@ -147,6 +161,15 @@ function readMp(raw: unknown): MultiplayerSave {
     duelLosses: int(m.duelLosses, def.duelLosses, 0),
     duelDraws: int(m.duelDraws, def.duelDraws, 0),
     duelRating: int(m.duelRating, def.duelRating, 0),
+  };
+}
+
+function readAd(raw: unknown): AdState {
+  const def = defaultSave(0).ad;
+  const a = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  return {
+    lastAdAt: int(a.lastAdAt, def.lastAdAt, 0),
+    shiftsSince: int(a.shiftsSince, def.shiftsSince, 0),
   };
 }
 

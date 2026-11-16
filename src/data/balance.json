@@ -17,6 +17,9 @@
   "dailyApps": 12,
   "nightApps": 12,
   "nightSalaryMult": 1.5,
+  "interstitialMinGapMs": 120000,
+  "interstitialEveryShifts": 3,
+  "interstitialOnboardingShifts": 3,
   "boardIds": {
     "streak": "bestStreak",
     "daily": "dailyShift",

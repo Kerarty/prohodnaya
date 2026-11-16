@@ -1,4 +1,5 @@
 import balance from '../data/balance.json';
+import type { AdState } from './save';
 
 /** Все числа баланса — в data-файле (ГДД, «крутилки» разд. 5). */
 export const BALANCE = balance;
@@ -16,6 +17,18 @@ export function dailyScore(correct: number, fast: number, errors: number): numbe
     BALANCE.dailyScoreFast * fast +
     (errors === 0 ? BALANCE.dailyScoreClean : 0)
   );
+}
+
+/**
+ * Interstitial-политика (ГДД разд. 7): показ только после закрытия экрана итогов,
+ * не чаще 1 на BALANCE.interstitialEveryShifts смены, не раньше
+ * BALANCE.interstitialMinGapMs после ЛЮБОЙ рекламы (rewarded включительно),
+ * никогда в онбординг-сменах 1–BALANCE.interstitialOnboardingShifts.
+ */
+export function shouldShowInterstitial(ad: AdState, playedShift: number, now: number): boolean {
+  if (playedShift <= BALANCE.interstitialOnboardingShifts) return false;
+  if (now - ad.lastAdAt < BALANCE.interstitialMinGapMs) return false;
+  return ad.shiftsSince >= BALANCE.interstitialEveryShifts;
 }
 
 /** Зарплата ночной смены: ×1.5 с округлением вверх (ГДД разд. 7). */
