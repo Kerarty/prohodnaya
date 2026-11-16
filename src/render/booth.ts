@@ -68,17 +68,18 @@ export function drawBooth(scene: Phaser.Scene, width: number, mode: 'game' | 'me
     });
   }
 
-  // Стойка: фронтон + столешница
+  // Стойка: фронтон + столешница. В кабинете стол ниже — нижние кнопки сетки его не наезжают.
+  const counterTopY = mode === 'menu' ? 1080 : 1032;
   g.fillStyle(THEME.COUNTER_BODY, 1);
-  g.fillRect(0, 1060, width, 220);
+  g.fillRect(0, counterTopY + 28, width, 1280 - counterTopY - 28);
   // фактура фронтона
   g.lineStyle(3, THEME.INK, 0.08);
-  g.lineBetween(0, 1120, width, 1120);
-  g.lineBetween(0, 1170, width, 1170);
+  g.lineBetween(0, counterTopY + 88, width, counterTopY + 88);
+  g.lineBetween(0, counterTopY + 138, width, counterTopY + 138);
   g.fillStyle(THEME.COUNTER_TOP, 1);
-  g.fillRoundedRect(0, 1032, width, 28, 6);
+  g.fillRoundedRect(0, counterTopY, width, 28, 6);
   g.lineStyle(4, THEME.INK, 1);
-  g.strokeRoundedRect(0, 1032, width, 28, 6);
+  g.strokeRoundedRect(0, counterTopY, width, 28, 6);
 
   const bulbs: Phaser.GameObjects.Arc[] = [];
 

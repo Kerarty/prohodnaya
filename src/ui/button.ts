@@ -27,17 +27,24 @@ export function makeButton(
   opts: ButtonOptions = {},
 ): Phaser.GameObjects.Container {
   const { width = 340, height = 88, color = THEME.ACCENT, fontSize = 32, secondary = false, subtitle } = opts;
-  const fill = secondary ? THEME.PAPER : color;
+  const fill = secondary ? (color ?? THEME.PAPER) : color;
 
   const container = scene.add.container(cx, cy);
 
   const shadow = scene.add.graphics();
   drawHardShadow(shadow, -width / 2, -height / 2, width, height, 22);
 
-  const rect = scene.add
-    .rectangle(0, 0, width, height, fill)
-    .setStrokeStyle(4, THEME.INK, 1)
-    .setInteractive({ useHandCursor: true });
+  // Корпус кнопки: roundRect r=22 в ink-обводке (спека §4.5), hit-зона — весь прямоугольник
+  const rect = scene.add.graphics();
+  rect.fillStyle(fill, 1);
+  rect.fillRoundedRect(-width / 2, -height / 2, width, height, 22);
+  rect.lineStyle(4, THEME.INK, 1);
+  rect.strokeRoundedRect(-width / 2, -height / 2, width, height, 22);
+  rect.setInteractive({
+    hitArea: new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
+    hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+    useHandCursor: true,
+  });
 
   const textColor = secondary ? INK_HEX : '#ffffff';
   const maxTextWidth = width - 32;

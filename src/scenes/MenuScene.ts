@@ -152,10 +152,10 @@ export class MenuScene extends Phaser.Scene {
     const dailyPlayed = s.dailyPlayed === dateKey();
     const nightPlayed = s.nightPlayed === dateKey();
     const unlocked = rank.index >= 1;
+    const debugMode = new URLSearchParams(location.search).has('debug');
 
-    const rows: Array<{ y: number; alpha: number; make: () => Phaser.GameObjects.Container }> = [
+    const rows: Array<{ alpha: number; make: () => Phaser.GameObjects.Container }> = [
       {
-        y: 510,
         alpha: 1,
         make: () =>
           makeButton(this, width / 2, 500, shiftLabel, () => this.scene.start('Game'), {
@@ -164,7 +164,6 @@ export class MenuScene extends Phaser.Scene {
           }),
       },
       {
-        y: 580,
         alpha: 1,
         make: () =>
           makeButton(this, width / 2, 592, 'Блиц · 90 секунд', () => this.startBlitz(), {
@@ -175,7 +174,6 @@ export class MenuScene extends Phaser.Scene {
           }),
       },
       {
-        y: 650,
         alpha: 1,
         make: () =>
           makeButton(this, width / 2, 676, 'Дуэль', () => void this.startDuel(), {
@@ -186,7 +184,6 @@ export class MenuScene extends Phaser.Scene {
           }),
       },
       {
-        y: 720,
         alpha: !unlocked || dailyPlayed ? 0.55 : 1,
         make: () =>
           makeButton(
@@ -209,7 +206,6 @@ export class MenuScene extends Phaser.Scene {
           ),
       },
       {
-        y: 790,
         alpha: !unlocked || nightPlayed ? 0.55 : 1,
         make: () =>
           makeButton(
@@ -232,7 +228,6 @@ export class MenuScene extends Phaser.Scene {
           ),
       },
       {
-        y: 868,
         alpha: s.tools.lens || s.tokens < BALANCE.lensPrice ? 0.55 : 1,
         make: () =>
           makeButton(this, width / 2 - 98, 928, `Лупа ${BALANCE.lensPrice}`, () => this.buy('lens'), {
@@ -243,20 +238,22 @@ export class MenuScene extends Phaser.Scene {
           }),
       },
       {
-        y: 868,
         alpha: s.tools.detector || s.tokens < BALANCE.detectorPrice ? 0.55 : 1,
         make: () =>
           makeButton(
             this,
             width / 2 + 98,
-            1012,
+            928,
             `Детектор ${BALANCE.detectorPrice}`,
             () => this.buy('detector'),
             { secondary: true, width: 186, height: 72, fontSize: 18 },
           ),
       },
-      {
-        y: 1096,
+    ];
+
+    if (debugMode) {
+      // Отладочная сцена платформы — только при ?debug (не показываем в проде)
+      rows.push({
         alpha: 1,
         make: () =>
           makeButton(this, width / 2 - 98, 1004, 'Тест платформы', () => this.scene.start('PlatformTest'), {
@@ -265,9 +262,8 @@ export class MenuScene extends Phaser.Scene {
             height: 72,
             fontSize: 18,
           }),
-      },
-      {
-        y: 948,
+      });
+      rows.push({
         alpha: 1,
         make: () =>
           makeButton(this, width / 2 + 98, 1004, 'Настройки', () => this.showSettings(), {
@@ -276,8 +272,19 @@ export class MenuScene extends Phaser.Scene {
             height: 72,
             fontSize: 18,
           }),
-      },
-    ];
+      });
+    } else {
+      rows.push({
+        alpha: 1,
+        make: () =>
+          makeButton(this, width / 2, 1004, 'Настройки', () => this.showSettings(), {
+            secondary: true,
+            width: 280,
+            height: 72,
+            fontSize: 18,
+          }),
+      });
+    }
 
     rows.forEach((row, i) => {
       const btn = row.make();
@@ -402,7 +409,8 @@ export class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const s = session();
 
-    const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(20);
+    // Затемнение — в ЛОКАЛЬНЫХ координатах контейнера (иначе смещается на его центр)
+    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setDepth(20);
     const plate = this.add.graphics().setDepth(20);
     plate.fillStyle(THEME.PAPER, 1);
     plate.fillRoundedRect(-250, -210, 500, 420, 20);
@@ -441,7 +449,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setAlpha(0.6);
 
-    const back = makeButton(this, 0, 160, 'Назад', () => this.closeSettings(), {
+    const back = makeButton(this, 0, 148, 'Назад', () => this.closeSettings(), {
       secondary: true,
       width: 300,
       fontSize: 24,
@@ -478,27 +486,28 @@ export class MenuScene extends Phaser.Scene {
 
   private showWaiting(): void {
     const { width, height } = this.scale;
-    const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(20);
+    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setDepth(20);
     const plate = this.add.graphics().setDepth(20);
     plate.fillStyle(THEME.PAPER, 1);
-    plate.fillRoundedRect(-180, -80, 360, 160, 18);
+    plate.fillRoundedRect(-180, -110, 360, 220, 18);
     plate.lineStyle(4, THEME.INK, 1);
-    plate.strokeRoundedRect(-180, -80, 360, 160, 18);
+    plate.strokeRoundedRect(-180, -110, 360, 220, 18);
     this.waitingUi = this.add.container(width / 2, height / 2, [dim, plate]).setDepth(20);
     this.waitingUi.add(
       this.add
-        .text(0, -40, 'Ожидание соперника…', { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
+        .text(0, -60, 'Ожидание соперника…', { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
         .setOrigin(0.5),
     );
     this.waitingUi.add(
       this.add
-        .text(0, 0, 'Открой игру во второй вкладке', { fontFamily: FONT, fontSize: '15px', color: INK_HEX })
+        .text(0, -20, 'Открой игру во второй вкладке', { fontFamily: FONT, fontSize: '15px', color: INK_HEX })
         .setOrigin(0.5)
         .setAlpha(0.75),
     );
-    const cancel = makeButton(this, 0, 50, 'Отмена', () => this.cancelWaiting(), {
+    const cancel = makeButton(this, 0, 55, 'Отмена', () => this.cancelWaiting(), {
       secondary: true,
       width: 260,
+      height: 64,
       fontSize: 22,
     });
     cancel.setDepth(20);
