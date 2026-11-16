@@ -19,6 +19,14 @@ export class LocalPlatform implements PlatformAPI {
     console.info('[platform:local] ready()');
   }
 
+  gameplayStart(): void {
+    console.info('[platform:local] gameplayStart()');
+  }
+
+  gameplayStop(): void {
+    console.info('[platform:local] gameplayStop()');
+  }
+
   getLang(): string {
     return navigator.language?.slice(0, 2) ?? 'ru';
   }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getPlatform } from '../platform';
 import { BALANCE } from '../game/economy';
 import { dateKey } from '../game/save';
 import { flushSession, resetProgress, session, sessionRank, sessionToday } from '../game/session';
@@ -36,6 +37,12 @@ export class MenuScene extends Phaser.Scene {
     this.waitingUi = null;
     this.waitingEvent = null;
     this.waitingCancelled = false;
+    // Кабинет — не активный геймплей: разметка GameplayAPI.stop для платформы
+    try {
+      getPlatform().gameplayStop();
+    } catch {
+      /* platform ещё не инициализирована (изолированные тесты сцен) */
+    }
 
     drawBooth(this, width, 'menu');
 

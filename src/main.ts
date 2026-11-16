@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { initPlatform } from './platform';
+import { getPlatform, initPlatform } from './platform';
 import { flushSession, initSession, loadSession, session } from './game/session';
 import { sfx } from './systems/sfx';
 import { BootScene } from './scenes/BootScene';
@@ -71,6 +71,12 @@ async function bootstrap(): Promise<void> {
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     scene: [BootScene, MenuScene, GameScene, PlatformTestScene],
+  });
+  // LoadingAPI.ready() — обязательный сигнал Яндекса: игра загрузилась и игрок может играть
+  // (шрифты уже дождались до создания игры; Boot→Menu происходят мгновенно, ассетов нет)
+  game.events.once(Phaser.Core.Events.READY, () => {
+    getPlatform().ready();
+    console.info('[game] LoadingAPI.ready() отправлен');
   });
   // Отладочный доступ: инстанс игры, Phaser и классы сцен из консоли
   // (window.__dbg.Phaser.HEADLESS используется тестовым ригом без рендера)

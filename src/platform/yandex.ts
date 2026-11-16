@@ -39,6 +39,25 @@ declare global {
 }
 
 const SAVE_KEY = 'save';
+/** Локальная копия сейва: прогресс не теряется, пока игрок не авторизован или облако недоступно. */
+const FALLBACK_KEY = 'prohodnaya.cloud';
+
+function writeFallback(data: SaveData): void {
+  try {
+    localStorage.setItem(FALLBACK_KEY, JSON.stringify(data));
+  } catch {
+    /* приватный режим — остаётся только облако */
+  }
+}
+
+function readFallback(): SaveData | null {
+  try {
+    const raw = localStorage.getItem(FALLBACK_KEY);
+    return raw ? (JSON.parse(raw) as SaveData) : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Реальная платформа Яндекс Игр. Работает только на хостинге платформы (sdk.js в index.html). */
 export class YandexPlatform implements PlatformAPI {
@@ -55,8 +74,8 @@ export class YandexPlatform implements PlatformAPI {
     try {
       this.player = await this.ysdk.getPlayer({ scopes: false });
     } catch (e) {
-      // Без игрока сейвы не работают, но игра должна запускаться
-      console.warn('[platform:yandex] игрок недоступен, облачные сейвы отключены', e);
+      // Без игрока облачные сейвы не работают — прогресс держится локальной копией
+      console.warn('[platform:yandex] игрок недоступен, сейвы в localStorage', e);
     }
   }
 
@@ -68,11 +87,30 @@ export class YandexPlatform implements PlatformAPI {
     }
   }
 
+  gameplayStart(): void {
+    try {
+      this.ysdk?.features.GameplayAPI?.start();
+    } catch (e) {
+      console.warn('[platform:yandex] GameplayAPI.start() упал', e);
+    }
+  }
+
+  gameplayStop(): void {
+    try {
+      this.ysdk?.features.GameplayAPI?.stop();
+    } catch (e) {
+      console.warn('[platform:yandex] GameplayAPI.stop() упал', e);
+    }
+  }
+
   getLang(): string {
     return this.ysdk?.environment.i18n.lang ?? 'ru';
   }
 
   async save(data: SaveData): Promise<void> {
+    // Локальная копия пишется всегда: требование «сохранение сразу после действия»
+    // не должно зависеть от доступности облака (гостевой режим, сетевые сбои)
+    writeFallback(data);
     if (!this.player) return;
     try {
       // Лимит 200 КБ на игрока; частота ограничивается вызывающей стороной (троттлинг в сейве игры)
@@ -83,14 +121,17 @@ export class YandexPlatform implements PlatformAPI {
   }
 
   async load(): Promise<SaveData | null> {
-    if (!this.player) return null;
-    try {
-      const data = await this.player.getData();
-      return (data[SAVE_KEY] as SaveData | undefined) ?? null;
-    } catch (e) {
-      console.warn('[platform:yandex] getData не удался', e);
-      return null;
+    if (this.player) {
+      try {
+        const data = await this.player.getData();
+        const cloud = (data[SAVE_KEY] as SaveData | undefined) ?? null;
+        if (cloud) return cloud;
+      } catch (e) {
+        console.warn('[platform:yandex] getData не удался', e);
+      }
     }
+    // Облака нет/пусто — играем от локальной копии (не теряем прогресс гостя)
+    return readFallback();
   }
 
   showRewarded(onReward: () => void): Promise<'shown' | 'failed'> {

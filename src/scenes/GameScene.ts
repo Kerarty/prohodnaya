@@ -393,6 +393,7 @@ export class GameScene extends Phaser.Scene {
     this.countdownText = null;
     // вход гостя завершился ещё во время отсчёта — кнопки обязаны включиться
     this.setButtonsEnabled(true);
+    getPlatform().gameplayStart();
   }
 
   private updateCounter(remainingMs?: number): void {
@@ -564,8 +565,10 @@ export class GameScene extends Phaser.Scene {
         if (this.runMode === 'shift') {
           this.setButtonsEnabled(true);
           this.startPatience();
+          getPlatform().gameplayStart();
         } else if (this.runStarted) {
           this.setButtonsEnabled(true);
+          getPlatform().gameplayStart();
         }
         if (this.guest) startBreathing(this.guest, GUEST_SCALE);
       },
@@ -738,6 +741,7 @@ export class GameScene extends Phaser.Scene {
   /** Карточка объяснения — без объяснения игра не продолжается (столп «Ошибка учит»). */
   private showMistake(app: Application): void {
     const { width, height } = this.scale;
+    getPlatform().gameplayStop(); // игрок читает — активный геймплей приостановлен
     const counted = !app.training;
     if (counted) this.errors += 1;
     this.updateCounter();
@@ -878,6 +882,7 @@ export class GameScene extends Phaser.Scene {
   private showInterrupted(): void {
     const { width, height } = this.scale;
     const s = session();
+    getPlatform().gameplayStop();
     s.tokens += this.earnedTokens;
     s.xp += this.earnedXp;
     s.currentShift = null;
@@ -934,6 +939,7 @@ export class GameScene extends Phaser.Scene {
   private finish(): void {
     const { width, height } = this.scale;
     const s = session();
+    getPlatform().gameplayStop();
     const clean = this.errors === 0;
     this.finishTokenTotal = this.earnedTokens + (clean ? BALANCE.cleanBonus : 0);
     this.finishXpTotal = this.earnedXp + (clean ? BALANCE.xpCleanShift : 0);
@@ -1059,6 +1065,7 @@ export class GameScene extends Phaser.Scene {
     if (this.runEnded) return;
     this.runEnded = true;
     this.busy = true;
+    getPlatform().gameplayStop();
     this.stopPatience();
     this.setButtonsEnabled(false);
     const score = this.runScore();

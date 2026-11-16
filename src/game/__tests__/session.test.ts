@@ -14,12 +14,22 @@ class FakePlatform implements PlatformAPI {
   readonly name: PlatformName = 'Local';
   saves: SaveData[] = [];
   stored: SaveData | null = null;
+  gameplayStarted = 0;
+  gameplayStopped = 0;
 
   init(): Promise<void> {
     return Promise.resolve();
   }
 
   ready(): void {}
+
+  gameplayStart(): void {
+    this.gameplayStarted += 1;
+  }
+
+  gameplayStop(): void {
+    this.gameplayStopped += 1;
+  }
 
   getLang(): string {
     return 'ru';

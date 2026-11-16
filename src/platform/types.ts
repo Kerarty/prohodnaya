@@ -21,6 +21,12 @@ export interface PlatformAPI {
   /** Игра готова к первому действию игрока (LoadingAPI.ready — требование Яндекса). */
   ready(): void;
 
+  /** Активный геймплей начался (GameplayAPI.start — требование Яндекса 1.19.3). */
+  gameplayStart(): void;
+
+  /** Геймплей приостановлен: меню, панели результатов, карточки (GameplayAPI.stop). */
+  gameplayStop(): void;
+
   /** Язык интерфейса игрока ('ru' | 'en' | ...). */
   getLang(): string;
 
