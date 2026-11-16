@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { currentLocale, initLocale, type LocaleCode } from '../i18n';
 import { flushSession, session } from '../game/session';
 import { THEME } from '../render/theme';
+import { OVERLAY, screenCenter, DESIGN_CX } from '../render/layout';
 import { sfx } from '../systems/sfx';
 import { makeButton } from './button';
 
@@ -36,29 +37,32 @@ export function makeLangButton(
 
 function openPicker(scene: Phaser.Scene, onChange?: () => void): void {
   if (scene.children.getByName('langPicker')) return;
-  const { width, height } = scene.scale;
+  // Панель — по центру ЭКРАНА (не только дизайн-колонки); dim больше любого аспекта
+  const c = screenCenter();
 
   const group = scene.add.container(0, 0).setName('langPicker');
-  // Группа стоит в (0,0) — dim центрируем в мировых координатах внутри неё
-  const dim = scene.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setInteractive().setDepth(20);
+  const dim = scene.add
+    .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+    .setInteractive()
+    .setDepth(20);
   dim.on('pointerdown', () => closePicker(scene));
   group.add(dim);
 
   const plate = scene.add.graphics().setDepth(20);
   const listH = LANGS.length * 74;
   plate.fillStyle(THEME.PAPER, 1);
-  plate.fillRoundedRect(width / 2 - 210, height / 2 - listH / 2 - 24, 420, listH + 48, 20);
+  plate.fillRoundedRect(DESIGN_CX - 210, c.y - listH / 2 - 24, 420, listH + 48, 20);
   plate.lineStyle(5, THEME.INK, 1);
-  plate.strokeRoundedRect(width / 2 - 210, height / 2 - listH / 2 - 24, 420, listH + 48, 20);
+  plate.strokeRoundedRect(DESIGN_CX - 210, c.y - listH / 2 - 24, 420, listH + 48, 20);
   group.add(plate);
 
   const current = currentLocale();
   LANGS.forEach((lang, i) => {
-    const y = height / 2 - listH / 2 - 24 + 44 + i * 74;
+    const y = c.y - listH / 2 - 24 + 44 + i * 74;
     const isCurrent = lang.code === current;
     const btn = makeButton(
       scene,
-      width / 2,
+      DESIGN_CX,
       y,
       lang.label,
       () => selectLocale(scene, lang.code, onChange),

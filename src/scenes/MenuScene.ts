@@ -4,6 +4,7 @@ import { BALANCE } from '../game/economy';
 import { dateKey } from '../game/save';
 import { flushSession, resetProgress, session, sessionRank, sessionToday } from '../game/session';
 import { drawBooth } from '../render/booth';
+import { applyCamera, OVERLAY, screenCenter, DESIGN_CX, DESIGN_W } from '../render/layout';
 import { bulbWave } from '../render/juice';
 import { FONT, INK_HEX, THEME } from '../render/theme';
 import { sfx } from '../systems/sfx';
@@ -33,7 +34,9 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { width } = this.scale;
+    // Адаптивный вьюпорт: зум камеры под фактический размер окна (layout.ts)
+    applyCamera(this);
+    const width = DESIGN_W; // сцены живут в дизайн-координатах 720×1280
     const s = session();
     const rank = sessionRank();
     this.bulbs = [];
@@ -47,7 +50,7 @@ export class MenuScene extends Phaser.Scene {
       /* platform ещё не инициализирована (изолированные тесты сцен) */
     }
 
-    drawBooth(this, width, 'menu');
+    drawBooth(this, 'menu');
 
     // Смена языка — правый верхний угол (рядом с кнопкой «Меню» в смене)
     makeLangButton(this, width - 48, 44);
@@ -420,11 +423,14 @@ export class MenuScene extends Phaser.Scene {
   private showSettings(): void {
     if (this.settingsUi) return;
     this.resetArmed = false;
-    const { width, height } = this.scale;
     const s = session();
 
-    // Затемнение — в ЛОКАЛЬНЫХ координатах контейнера (иначе смещается на его центр)
-    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setInteractive().setDepth(20);
+    // Затемнение — в ЛОКАЛЬНЫХ координатах контейнера (иначе смещается на его центр);
+    // больше видимой области любого аспекта — закрывает весь экран
+    const dim = this.add
+      .rectangle(0, 0, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive()
+      .setDepth(20);
     const plate = this.add.graphics().setDepth(20);
     plate.fillStyle(THEME.PAPER, 1);
     plate.fillRoundedRect(-250, -210, 500, 420, 20);
@@ -470,7 +476,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     this.settingsUi = this.add
-      .container(width / 2, height / 2, [dim, plate, title, soundBtn, resetBtn, version, back])
+      .container(DESIGN_CX, screenCenter().y, [dim, plate, title, soundBtn, resetBtn, version, back])
       .setDepth(20);
   }
 
@@ -499,14 +505,17 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private showWaiting(): void {
-    const { width, height } = this.scale;
-    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setInteractive().setDepth(20);
+    // dim в локальных координатах контейнера — больше видимой области любого аспекта
+    const dim = this.add
+      .rectangle(0, 0, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive()
+      .setDepth(20);
     const plate = this.add.graphics().setDepth(20);
     plate.fillStyle(THEME.PAPER, 1);
     plate.fillRoundedRect(-180, -110, 360, 220, 18);
     plate.lineStyle(4, THEME.INK, 1);
     plate.strokeRoundedRect(-180, -110, 360, 220, 18);
-    this.waitingUi = this.add.container(width / 2, height / 2, [dim, plate]).setDepth(20);
+    this.waitingUi = this.add.container(DESIGN_CX, screenCenter().y, [dim, plate]).setDepth(20);
     this.waitingUi.add(
       this.add
         .text(0, -60, t('waitingOpponent'), { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
@@ -544,7 +553,7 @@ export class MenuScene extends Phaser.Scene {
   private hideWaiting(message: string): void {
     this.cleanupWaiting();
     const toast = this.add
-      .text(this.scale.width / 2, this.scale.height / 2, message, {
+      .text(screenCenter().x, screenCenter().y, message, {
         fontFamily: FONT,
         fontSize: '22px',
         color: INK_HEX,

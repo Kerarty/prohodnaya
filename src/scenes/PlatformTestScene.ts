@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { getPlatform } from '../platform';
 import { FONT, INK_HEX } from '../render/theme';
+import { applyCamera, DESIGN_CX } from '../render/layout';
 import { makeButton } from '../ui/button';
 
 /**
@@ -14,12 +15,12 @@ export class PlatformTestScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { width } = this.scale;
+    applyCamera(this);
     const api = getPlatform();
 
     const lines: string[] = [`Платформа: ${api.name}`, `Язык: ${api.getLang()}`];
     const status = this.add
-      .text(width / 2, 240, lines.join('\n'), {
+      .text(DESIGN_CX, 240, lines.join('\n'), {
         fontFamily: FONT,
         fontSize: '26px',
         color: INK_HEX,
@@ -44,21 +45,21 @@ export class PlatformTestScene extends Phaser.Scene {
       );
     })();
 
-    makeButton(this, width / 2, 620, 'Rewarded-видео', () => {
+    makeButton(this, DESIGN_CX, 620, 'Rewarded-видео', () => {
       void api.showRewarded(() => log('Rewarded: награда выдана')).then((r) =>
         log(`Rewarded: ${r}`),
       );
     }, { secondary: true });
 
-    makeButton(this, width / 2, 740, 'Interstitial', () => {
+    makeButton(this, DESIGN_CX, 740, 'Interstitial', () => {
       void api.showInterstitial().then(() => log('Interstitial: показан'));
     }, { secondary: true });
 
-    makeButton(this, width / 2, 860, 'Сброс сейва', () => {
+    makeButton(this, DESIGN_CX, 860, 'Сброс сейва', () => {
       void api.save({ version: 1, ts: 0 }).then(() => log('Сейв: сброшен'));
     }, { secondary: true });
 
-    makeButton(this, width / 2, 1020, 'НАЗАД', () => this.scene.start('Menu'), {
+    makeButton(this, DESIGN_CX, 1020, 'НАЗАД', () => this.scene.start('Menu'), {
       secondary: true,
     });
   }

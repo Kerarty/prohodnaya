@@ -3,6 +3,7 @@ import { getPlatform, initPlatform } from './platform';
 import { initLocale } from './i18n';
 import { flushSession, initSession, loadSession, session } from './game/session';
 import { sfx } from './systems/sfx';
+import { initLayout } from './render/layout';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { MenuScene } from './scenes/MenuScene';
@@ -30,10 +31,44 @@ window.addEventListener('error', (e) => {
     `${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`,
   );
   console.error(e.error ?? e.message);
+  // Самолечение WebGL: на части драйверов/софтверных GL ресайз холста ломает
+  // фреймбуфер RenderTarget (Phaser 3.90). Один тихий перезапуск на Canvas-рендер:
+  // игра полностью векторная, Canvas тянет её без проблем; сейв переживает reload.
+  if (e.message?.includes('Framebuffer status')) {
+    try {
+      if (sessionStorage.getItem('prohodnaya.renderer') !== 'canvas') {
+        sessionStorage.setItem('prohodnaya.renderer', 'canvas');
+        location.reload();
+      }
+    } catch {
+      /* приватный режим без sessionStorage — продолжаем как есть */
+    }
+  }
 });
 window.addEventListener('unhandledrejection', (e) => {
   (window as unknown as { __errs: string[] }).__errs.push(`rejection: ${String(e.reason)}`);
 });
+
+/**
+ * Все Text растеризуем в 2×: при дробном зуме адаптивной камеры текст остаётся
+ * чётким (текстура не растягивается). Патч фабрики — одна точка на всю игру.
+ */
+function installHiDpiText(): void {
+  type Factory = Phaser.GameObjects.GameObjectFactory;
+  const proto = Phaser.GameObjects.GameObjectFactory.prototype as unknown as {
+    text: (
+      this: Factory,
+      x: number | undefined,
+      y: number | undefined,
+      content: string | string[] | undefined,
+      style?: Phaser.Types.GameObjects.Text.TextStyle,
+    ) => Phaser.GameObjects.Text;
+  };
+  const orig = proto.text;
+  proto.text = function (x, y, content, style) {
+    return orig.call(this, x, y, content, { resolution: 2, ...style });
+  };
+}
 
 async function bootstrap(): Promise<void> {
   const platform = await initPlatform();
@@ -65,19 +100,35 @@ async function bootstrap(): Promise<void> {
 
   await waitFonts();
 
+  installHiDpiText();
+
+  // Рендер: WebGL по умолчанию (?canvas=1 или флаг самолечения — Canvas).
+  // Полностью векторная игра без растровых ассетов — Canvas-рендер тянет её целиком.
+  let forceCanvas = false;
+  try {
+    forceCanvas = sessionStorage.getItem('prohodnaya.renderer') === 'canvas';
+  } catch {
+    /* приватный режим */
+  }
+  if (new URLSearchParams(location.search).has('canvas')) forceCanvas = true;
+
+  // Адаптивный вьюпорт: canvas на всё окно, backing = css × clamp(dpr,1,2),
+  // камеры зумятся на дизайн-область 720×1280 (см. render/layout.ts).
+  // Ширина/высота в конфиге — стартовые, initLayout пересчитает их при 'ready'.
   const game = new Phaser.Game({
-    type: Phaser.AUTO,
+    type: forceCanvas ? Phaser.CANVAS : Phaser.AUTO,
     parent: 'app',
     width: 720,
     height: 1280,
     backgroundColor: '#ffedd3',
-    roundPixels: true,
+    roundPixels: false, // дробный зум: без привязки к пикселям анимации плавнее
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      mode: Phaser.Scale.NONE, // размеры холста ведёт render/layout.ts
     },
     scene: [BootScene, MenuScene, GameScene, PlatformTestScene],
   });
+  // Первый замер и живой ресайз (окно/ориентация/dpr) — применится после boot игры
+  initLayout(game);
   // LoadingAPI.ready() — обязательный сигнал Яндекса: игра загрузилась и игрок может играть
   // (шрифты уже дождались до создания игры; Boot→Menu происходят мгновенно, ассетов нет)
   game.events.once(Phaser.Core.Events.READY, () => {

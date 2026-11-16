@@ -56,10 +56,17 @@
         overflow: hidden;
         touch-action: none;
       }
-      #app {
-        width: 100%;
-        height: 100dvh;
-      }
+    #app {
+      width: 100%;
+      height: 100dvh;
+    }
+    /* Адаптивный вьюпорт (render/layout.ts): холст занимает всё окно, backing
+       store ведёт layout.ts — CSS-размер фиксирован на 100% от #app */
+    #app canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
     </style>
   </head>
   <body>

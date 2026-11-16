@@ -25,6 +25,15 @@ import {
 } from '../render/characterRenderer';
 import { drawBooth } from '../render/booth';
 import type { BoothView } from '../render/booth';
+import {
+  applyCamera,
+  layoutOffLeft,
+  layoutOffRight,
+  OVERLAY,
+  screenCenter,
+  DESIGN_CX,
+  DESIGN_W,
+} from '../render/layout';
 import { bulbWave, confetti, spawnThought } from '../render/juice';
 import { PassCard } from '../render/passCard';
 import { drawRuleBoard } from '../render/ruleBoard';
@@ -145,7 +154,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data?: SceneLaunchData): void {
-    const { width, height } = this.scale;
+    // Адаптивный вьюпорт: зум камеры под фактический размер окна (layout.ts)
+    applyCamera(this);
+    const width = DESIGN_W; // сцены живут в дизайн-координатах 720×1280
     const s = session();
     this.isDaily = false;
     this.isNight = false;
@@ -251,7 +262,7 @@ export class GameScene extends Phaser.Scene {
       void flushSession();
     }
 
-    this.boothView = drawBooth(this, width, 'game');
+    this.boothView = drawBooth(this, 'game');
 
     this.boardView = drawRuleBoard(this, this.rules, width / 2, BOARD_CY, BOARD_W);
     this.boardView.pulse();
@@ -319,7 +330,7 @@ export class GameScene extends Phaser.Scene {
     // Блиц стартует на первом update (Clock сцены bootится после create); дуэль — по startAt
     if (this.runMode === 'duel') {
       this.countdownText = this.add
-        .text(width / 2, height / 2, '', {
+        .text(DESIGN_CX, screenCenter().y, '', {
           fontFamily: FONT,
           fontSize: '54px',
           color: INK_HEX,
@@ -434,7 +445,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Правая колонка инструментов: Лупа (подсказка полей) над Детектором (заряды). */
   private createToolButtons(): void {
-    const width = this.scale.width;
+    const width = DESIGN_W;
     this.lensBtn?.destroy();
     this.detectorBtn?.destroy();
 
@@ -550,7 +561,7 @@ export class GameScene extends Phaser.Scene {
 
   private toast(text: string): void {
     const t = this.add
-      .text(this.scale.width / 2, 1052, text, {
+      .text(DESIGN_CX, 1052, text, {
         fontFamily: FONT,
         fontSize: '24px',
         color: INK_HEX,
@@ -564,7 +575,7 @@ export class GameScene extends Phaser.Scene {
   /** Всплывающий текст начисления (ГДД: «жетоны летят в счётчик»). */
   private floatText(text: string, color: string): void {
     const t = this.add
-      .text(this.scale.width / 2, 1090, text, {
+      .text(DESIGN_CX, 1090, text, {
         fontFamily: FONT,
         fontSize: '34px',
         color,
@@ -591,15 +602,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showApplication(): void {
-    const { width } = this.scale;
+    const width = DESIGN_W;
     const app = this.queue[this.index];
     this.updateCounter();
     this.setButtonsEnabled(false);
     this.guest?.destroy();
     this.card?.destroy();
 
-    // Bounce-вход слева: слайд + overshoot масштаба (спека §4.3 №8)
-    this.guest = drawCharacter(this, app.guest, -80, GUEST_Y, GUEST_SCALE);
+    // Bounce-вход слева: слайд + overshoot масштаба (спека §4.3 №8).
+    // На широких экранах заходим от левого края ВИДИМОЙ области, а не от −80
+    this.guest = drawCharacter(this, app.guest, layoutOffLeft(), GUEST_Y, GUEST_SCALE);
     // Тень в нише появляется вместе с гостем и уходит с ним — не висит в пустой нише
     const guestShadow = this.boothView?.guestShadow;
     if (guestShadow) {
@@ -706,7 +718,7 @@ export class GameScene extends Phaser.Scene {
           sfx.chip();
           sfx.success();
           sfx.coin();
-          confetti(this, this.scale.width / 2, 480);
+          confetti(this, DESIGN_CX, 480);
           bulbWave(this, this.signBulbs);
           this.floatText(t('floatPlus', { n: reward }), '#3ec46d');
         });
@@ -719,7 +731,7 @@ export class GameScene extends Phaser.Scene {
           this.flash(THEME.SUCCESS);
           sfx.chip();
           sfx.success();
-          confetti(this, this.scale.width / 2, 480);
+          confetti(this, DESIGN_CX, 480);
           bulbWave(this, this.signBulbs);
         });
         this.time.delayedCall(800, () => this.leaveGuest('ok'));
@@ -762,7 +774,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private leaveGuest(kind: 'ok' | 'reject' | 'timeout' = 'ok'): void {
-    const { width } = this.scale;
+    // Уводим гостя за ПРАВЫЙ край видимой области (на широких экранах он дальше 940)
+    const offRight = layoutOffRight();
     const guestShadow = this.boothView?.guestShadow;
     if (guestShadow) {
       this.tweens.add({ targets: guestShadow, alpha: 0, duration: 250 });
@@ -773,7 +786,7 @@ export class GameScene extends Phaser.Scene {
         this.time.delayedCall(420, () => {
           this.tweens.add({
             targets: this.guest,
-            x: width + 220,
+            x: offRight,
             rotation: (Math.random() < 0.5 ? -1 : 1) * Phaser.Math.DegToRad(10),
             duration: 400,
             ease: 'Quad.easeIn',
@@ -781,7 +794,7 @@ export class GameScene extends Phaser.Scene {
         });
         this.time.delayedCall(840, () => this.next());
       } else {
-        this.tweens.add({ targets: this.guest, x: width + 220, duration: 450, ease: 'Quad.easeIn' });
+        this.tweens.add({ targets: this.guest, x: offRight, duration: 450, ease: 'Quad.easeIn' });
         this.time.delayedCall(550, () => this.next());
       }
     } else {
@@ -801,14 +814,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private flash(color: number): void {
-    const { width, height } = this.scale;
-    const rect = this.add.rectangle(width / 2, height / 2, width, height, color, THEME.FLASH_A);
+    // Оверлей больше видимой области любого аспекта — вспышка заливает весь экран
+    const rect = this.add.rectangle(
+      OVERLAY.x,
+      OVERLAY.y,
+      OVERLAY.width,
+      OVERLAY.height,
+      color,
+      THEME.FLASH_A,
+    );
     this.tweens.add({ targets: rect, alpha: 0, duration: 150, onComplete: () => rect.destroy() });
   }
 
   /** Карточка объяснения — без объяснения игра не продолжается (столп «Ошибка учит»). */
   private showMistake(app: Application): void {
-    const { width, height } = this.scale;
     getPlatform().gameplayStop(); // игрок читает — активный геймплей приостановлен
     const counted = !app.training;
     if (counted) this.errors += 1;
@@ -816,7 +835,7 @@ export class GameScene extends Phaser.Scene {
     if (counted && this.guest) spawnThought(this, this.guest);
 
     const dim = this.add
-      .rectangle(width / 2, height / 2, width, height, 0x000000, 0.5)
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
       .setInteractive();
 
     const info: { text: string; field?: DocFieldId } =
@@ -830,7 +849,7 @@ export class GameScene extends Phaser.Scene {
       limitReached && !this.forgivenThisShift && getPlatform().adsSupported;
     // Панель выше, когда в ней два ряда кнопок (прощение + завершение) — кнопки не вылезают за край
     const half = forgivePossible ? 200 : 170;
-    const panel = this.add.container(width / 2, height / 2);
+    const panel = this.add.container(DESIGN_CX, screenCenter().y);
     const g = this.add.graphics();
     drawHardShadow(g, -290, -half, 580, half * 2, 18);
     g.fillStyle(THEME.PAPER, 1);
@@ -951,7 +970,7 @@ export class GameScene extends Phaser.Scene {
 
   /** 3 ошибки — смена прервана: выплата за верные сохраняется, бонус сгорает (ГДД разд. 5). */
   private showInterrupted(): void {
-    const { width, height } = this.scale;
+    const width = DESIGN_W;
     const s = session();
     getPlatform().gameplayStop();
     s.tokens += this.earnedTokens;
@@ -962,9 +981,11 @@ export class GameScene extends Phaser.Scene {
     void flushSession();
     this.resultShown = true;
 
-    const cy = height / 2;
+    const cy = screenCenter().y;
     // интерактивный dim: не пускает клики к кнопкам сцены за панелью результата
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
+    this.add
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, width / 2 - 290, cy - 200, 580, 400, 18);
     g.fillStyle(THEME.PAPER, 1);
@@ -1009,7 +1030,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private finish(): void {
-    const { width, height } = this.scale;
+    const width = DESIGN_W;
     const s = session();
     getPlatform().gameplayStop();
     const clean = this.errors === 0;
@@ -1030,14 +1051,16 @@ export class GameScene extends Phaser.Scene {
     this.resultShown = true;
 
     const rankAfter = rankFor(s.xp);
-    const cy = height / 2;
+    const cy = screenCenter().y;
     const title = this.isDaily
       ? t('dailyDone')
       : this.isNight
         ? t('nightDone')
         : t('shiftDone', { n: this.shift });
 
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
+    this.add
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, 60, cy - 360, 600, 720, 24);
     g.fillStyle(THEME.PAPER, 1);
@@ -1168,9 +1191,11 @@ export class GameScene extends Phaser.Scene {
     void getPlatform().submitScore(BALANCE.boardIds.blitzBest, s.mp.blitzBest);
     void flushSession();
 
-    const { width, height } = this.scale;
-    const cy = height / 2;
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
+    const width = DESIGN_W;
+    const cy = screenCenter().y;
+    this.add
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, 60, cy - 300, 600, 600, 24);
     g.fillStyle(THEME.PAPER, 1);
@@ -1224,9 +1249,11 @@ export class GameScene extends Phaser.Scene {
 
   /** Дуэль: отправить свой скор и дождаться итога (план мультиплеера, фаза 2). */
   private finishDuel(score: number): void {
-    const { width, height } = this.scale;
-    const cy = height / 2;
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
+    const width = DESIGN_W;
+    const cy = screenCenter().y;
+    this.add
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive();
     const waiting = this.add
       .text(width / 2, cy, t('waitingResult'), {
         fontFamily: FONT,
@@ -1282,8 +1309,8 @@ export class GameScene extends Phaser.Scene {
     winner: 'me' | 'opponent' | 'draw' | null,
     ratingDelta: number | null,
   ): void {
-    const { width, height } = this.scale;
-    const cy = height / 2;
+    const width = DESIGN_W;
+    const cy = screenCenter().y;
     const s = session();
     const opponentScore = outcome?.opponentScore ?? this.opponentScore;
     const finalWinner: 'me' | 'opponent' | 'draw' =
@@ -1298,7 +1325,9 @@ export class GameScene extends Phaser.Scene {
 
     const title = finalWinner === 'me' ? t('win') : finalWinner === 'opponent' ? t('lose') : t('draw');
 
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
+    this.add
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, 60, cy - 300, 600, 600, 24);
     g.fillStyle(THEME.PAPER, 1);
