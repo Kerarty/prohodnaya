@@ -15,6 +15,13 @@ function onCrazyGamesHosting(): boolean {
   );
 }
 
+/** Явный оверрайд для локального теста платформы: ?platform=crazy|itch|local. */
+function forcedPlatform(): 'crazy' | 'itch' | 'local' | null {
+  if (typeof location === 'undefined') return null;
+  const p = new URLSearchParams(location.search).get('platform');
+  return p === 'crazy' || p === 'itch' || p === 'local' ? p : null;
+}
+
 let instance: PlatformAPI | null = null;
 
 /**
@@ -23,16 +30,19 @@ let instance: PlatformAPI | null = null;
  * (window.YaGames), itch-сборка идёт в режиме itch (без рекламы),
  * CrazyGames определяется по домену хостинга (SDK подгружается динамически).
  * Локально SDK отсутствует — играется через заглушку LocalPlatform.
+ * ?platform=crazy гоняет CrazyPlatform на localhost: SDK v3 сам включает
+ * local-режим с демо-рекламой (доки CrazyGames), ?useLocalSdk=true не нужен.
  */
 export async function initPlatform(): Promise<PlatformAPI> {
   if (instance) return instance;
 
+  const forced = forcedPlatform();
   instance =
     typeof window !== 'undefined' && window.YaGames !== undefined
       ? new YandexPlatform()
-      : import.meta.env.MODE === 'itch'
+      : forced === 'itch'
         ? new ItchPlatform()
-        : onCrazyGamesHosting()
+        : forced === 'crazy' || onCrazyGamesHosting()
           ? new CrazyPlatform()
           : new LocalPlatform();
   await instance.init();

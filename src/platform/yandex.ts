@@ -104,6 +104,11 @@ export class YandexPlatform implements PlatformAPI {
     }
   }
 
+  /** У Яндекса нет аналога праздника достижений — сознательный no-op. */
+  happytime(): void {
+    /* не поддерживается платформой */
+  }
+
   getLang(): string {
     return this.ysdk?.environment.i18n.lang ?? 'ru';
   }

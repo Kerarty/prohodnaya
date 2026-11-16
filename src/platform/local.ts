@@ -29,6 +29,10 @@ export class LocalPlatform implements PlatformAPI {
     console.info('[platform:local] gameplayStop()');
   }
 
+  happytime(): void {
+    console.info('[platform:local] happytime()');
+  }
+
   getLang(): string {
     return navigator.language?.slice(0, 2) ?? 'ru';
   }

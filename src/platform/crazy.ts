@@ -4,12 +4,21 @@ import type { PlatformName, SaveData } from './types';
 /* Минимальные типы SDK CrazyGames v3 — только то, что используем. */
 interface CrazySdk {
   init(): Promise<void>;
-  environment: { locale: string };
+  /** Строка-режим: 'local' | 'crazygames' | 'disabled' (НЕ объект). */
+  environment: string;
+  user: {
+    /** Синхронно после init: локаль вида 'en-US', страна, устройство. */
+    systemInfo?: { locale?: string };
+  };
   game: {
     loadingStart(): void;
-    loadingComplete(): void;
+    /** SDK v3: окончание загрузки (в v2 метод назывался loadingComplete). */
+    loadingStop?(): void;
+    /** Легаси-имя для страховки от старых версий SDK. */
+    loadingComplete?(): void;
     gameplayStart(): void;
     gameplayStop(): void;
+    happytime(): void;
   };
   ad: {
     requestAd(type: 'midgame' | 'rewarded', callbacks: {
@@ -88,12 +97,14 @@ export class CrazyPlatform extends LocalPlatform {
     try {
       this.sdk = window.CrazyGames.SDK;
       await this.sdk.init();
+      console.info(`[platform:crazy] SDK окружение: ${this.sdk.environment}`);
     } catch (e) {
       console.warn('[platform:crazy] SDK.init упал, сейвы локальные', e);
       this.sdk = null;
       return;
     }
-    // Трекинг загрузки: complete в ready(), когда игрок может играть
+    // Трекинг загрузки: старт сразу после init (шрифты/сессия грузятся дальше),
+    // остановка — в ready(), когда игрок может играть
     try {
       this.sdk.game.loadingStart();
     } catch (e) {
@@ -103,9 +114,14 @@ export class CrazyPlatform extends LocalPlatform {
 
   ready(): void {
     try {
-      this.sdk?.game.loadingComplete();
+      // SDK v3 = loadingStop(); loadingComplete — легаси v2, вызываем если есть
+      if (typeof this.sdk?.game.loadingStop === 'function') {
+        this.sdk.game.loadingStop();
+      } else if (typeof this.sdk?.game.loadingComplete === 'function') {
+        this.sdk.game.loadingComplete();
+      }
     } catch (e) {
-      console.warn('[platform:crazy] loadingComplete упал', e);
+      console.warn('[platform:crazy] loadingStop упал', e);
     }
   }
 
@@ -125,8 +141,23 @@ export class CrazyPlatform extends LocalPlatform {
     }
   }
 
+  happytime(): void {
+    try {
+      this.sdk?.game.happytime();
+    } catch (e) {
+      console.warn('[platform:crazy] happytime упал', e);
+    }
+  }
+
   getLang(): string {
-    return this.sdk?.environment?.locale ?? 'en';
+    // ВАЖНО: environment в v3 — строка-режим, локаль живёт в user.systemInfo
+    try {
+      const locale = this.sdk?.user?.systemInfo?.locale;
+      if (locale) return locale.slice(0, 2);
+    } catch {
+      /* 'disabled'-режим: user-модуль недоступен */
+    }
+    return navigator.language?.slice(0, 2) ?? 'en';
   }
 
   async save(data: SaveData): Promise<void> {

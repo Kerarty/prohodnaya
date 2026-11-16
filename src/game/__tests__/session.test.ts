@@ -33,6 +33,8 @@ class FakePlatform implements PlatformAPI {
     this.gameplayStopped += 1;
   }
 
+  happytime(): void {}
+
   getLang(): string {
     return 'ru';
   }

@@ -1120,6 +1120,8 @@ export class GameScene extends Phaser.Scene {
           fontStyle: 'bold',
         })
         .setOrigin(0.5);
+      // Новое звание — праздник достижений на CrazyGames
+      getPlatform().happytime();
     }
 
     // Без строк скор/звание середина панели остаётся пустой — поднимаю блок кнопок
@@ -1185,8 +1187,11 @@ export class GameScene extends Phaser.Scene {
   /** Блиц: скор в лидерборды Яндекса (blitzDay/blitzBest) и свой рекорд в сейв. */
   private finishBlitz(score: number): void {
     const s = session();
+    const previousBest = s.mp.blitzBest;
     s.mp.blitzRuns += 1;
     s.mp.blitzBest = Math.max(s.mp.blitzBest, score);
+    // Новый личный рекорд — праздник достижений на CrazyGames (редкое событие)
+    if (score > previousBest) getPlatform().happytime();
     void getPlatform().submitScore(BALANCE.boardIds.blitzDay, score);
     void getPlatform().submitScore(BALANCE.boardIds.blitzBest, s.mp.blitzBest);
     void flushSession();
@@ -1322,6 +1327,8 @@ export class GameScene extends Phaser.Scene {
     else if (finalWinner === 'opponent') s.mp.duelLosses += 1;
     else s.mp.duelDraws += 1;
     void flushSession();
+    // Победа в дуэли — праздник достижений на CrazyGames
+    if (finalWinner === 'me') getPlatform().happytime();
 
     const title = finalWinner === 'me' ? t('win') : finalWinner === 'opponent' ? t('lose') : t('draw');
 

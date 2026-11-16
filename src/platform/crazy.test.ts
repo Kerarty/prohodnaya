@@ -2,15 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { CrazyPlatform } from './crazy';
 
 /** Фейк SDK.data/ad: проверяет контракт, который обещает CrazyPlatform. */
-function makeFakeSdk(options: { adError?: boolean } = {}) {
+function makeFakeSdk(options: { adError?: boolean; legacyLoading?: boolean } = {}) {
   const store = new Map<string, string>();
   const calls: string[] = [];
   const sdk = {
+    environment: 'local',
+    user: { systemInfo: undefined as { locale?: string } | undefined },
     game: {
       loadingStart: () => calls.push('loadingStart'),
+      // SDK v3; в legacy-режиме имитируем старый SDK без loadingStop
+      ...(options.legacyLoading
+        ? {}
+        : { loadingStop: () => calls.push('loadingStop') }),
       loadingComplete: () => calls.push('loadingComplete'),
       gameplayStart: () => calls.push('gameplayStart'),
       gameplayStop: () => calls.push('gameplayStop'),
+      happytime: () => calls.push('happytime'),
     },
     ad: {
       requestAd: (type: 'midgame' | 'rewarded', cb: { adFinished?(): void; adError?(): void }) => {
@@ -76,6 +83,35 @@ describe('CrazyPlatform', () => {
     const r = await p.showRewarded(() => {});
     expect(r).toBe('failed');
     expect(() => p.gameplayStart()).not.toThrow();
+    expect(() => p.happytime()).not.toThrow();
     expect(() => p.ready()).not.toThrow();
+  });
+
+  it('ready(): SDK v3 — loadingStop, легаси — фолбэк на loadingComplete', () => {
+    const fakeV3 = makeFakeSdk();
+    platformWith(fakeV3.sdk).ready();
+    expect(fakeV3.calls).toContain('loadingStop');
+    expect(fakeV3.calls).not.toContain('loadingComplete');
+
+    const fakeLegacy = makeFakeSdk({ legacyLoading: true });
+    platformWith(fakeLegacy.sdk).ready();
+    expect(fakeLegacy.calls).toContain('loadingComplete');
+    expect(fakeLegacy.calls).not.toContain('loadingStop');
+  });
+
+  it('happytime проходит в SDK', () => {
+    const fake = makeFakeSdk();
+    platformWith(fake.sdk).happytime();
+    expect(fake.calls).toContain('happytime');
+  });
+
+  it('getLang: локаль из user.systemInfo (v3), фолбэк на navigator', () => {
+    const fake = makeFakeSdk();
+    fake.sdk.user = { systemInfo: { locale: 'de-DE' } };
+    expect(platformWith(fake.sdk).getLang()).toBe('de');
+    // без systemInfo — браузерная локаль (в тестовом env navigator.language = 'en-US')
+    const bare = makeFakeSdk();
+    bare.sdk.user = { systemInfo: undefined };
+    expect(['en', 'ru']).toContain(platformWith(bare.sdk).getLang());
   });
 });
