@@ -87,9 +87,14 @@ describe('сейв (день 5)', () => {
     expect(s.nightPlayed).toBe('2026-11-09');
   });
 
-  it('epochDays: стабильная основа для игрового дня', () => {
-    expect(epochDays(0)).toBe(0);
-    expect(epochDays(86_400_000)).toBe(1);
-    expect(epochDays(86_399_999)).toBe(0);
+  it('epochDays: локальные дни — границы суток по таймзоне игрока', () => {
+    // Явная таймзона: UTC+0
+    expect(epochDays(0, 0)).toBe(0);
+    expect(epochDays(86_400_000, 0)).toBe(1);
+    expect(epochDays(86_399_999, 0)).toBe(0);
+    // UTC+3 (МСК): в 00:40 локального дня epoch-число уже следующего дня,
+    // хотя по UTC предыдущий день ещё идёт — синхронно с dateKey()
+    expect(epochDays(78_000_000, -180)).toBe(1);
+    expect(epochDays(60_000_000, -180)).toBe(0);
   });
 });

@@ -5,7 +5,7 @@ export interface SaveData {
 }
 
 /** Какая реализация платформы активна — для отладки и тестов. */
-export type PlatformName = 'Yandex' | 'Local' | 'Itch';
+export type PlatformName = 'Yandex' | 'Local' | 'Itch' | 'Crazy';
 
 /**
  * Единый контракт платформы. Игра не знает, где запущена:

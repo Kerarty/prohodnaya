@@ -1,15 +1,27 @@
 import type { PlatformAPI } from './types';
+import { CrazyPlatform } from './crazy';
 import { ItchPlatform } from './itch';
 import { LocalPlatform } from './local';
 import { YandexPlatform } from './yandex';
 
 export type { PlatformAPI, PlatformName, SaveData } from './types';
 
+/** HTML5-подача CrazyGames: игра хостится на их домене в production-сборке. */
+function onCrazyGamesHosting(): boolean {
+  return (
+    import.meta.env.MODE === 'production' &&
+    typeof location !== 'undefined' &&
+    /(^|\.)crazygames\.com$/.test(location.hostname)
+  );
+}
+
 let instance: PlatformAPI | null = null;
 
 /**
- * SDK на хостинге Яндекса подключается тегом в index.html и определяет window.YaGames.
- * itch-сборка (`npm run build:itch`, vite mode=itch) получает ItchPlatform без рекламы.
+ * Одна production-сборка обслуживает все площадки: приоритет у SDK, который
+ * реально доступен в окружении. SDK Яндекса платформа подставляет сама
+ * (window.YaGames), itch-сборка идёт в режиме itch (без рекламы),
+ * CrazyGames определяется по домену хостинга (SDK подгружается динамически).
  * Локально SDK отсутствует — играется через заглушку LocalPlatform.
  */
 export async function initPlatform(): Promise<PlatformAPI> {
@@ -20,7 +32,9 @@ export async function initPlatform(): Promise<PlatformAPI> {
       ? new YandexPlatform()
       : import.meta.env.MODE === 'itch'
         ? new ItchPlatform()
-        : new LocalPlatform();
+        : onCrazyGamesHosting()
+          ? new CrazyPlatform()
+          : new LocalPlatform();
   await instance.init();
   console.info(`[platform] активна: ${instance.name}`);
   return instance;

@@ -47,8 +47,7 @@ npm run dist:itch # сборка + zip для itch.io (без рекламных
 
 ## Как устроено
 
-- `src/platform` — единый интерфейс `PlatformAPI`: `LocalPlatform` (localStorage + мок рекламы)
-  и `YandexPlatform` (реальный SDK). Игра не знает, где запущена.
+- `src/platform` — единый интерфейс `PlatformAPI`, игра не знает, где запущена: `YandexPlatform` (SDK Яндекса), `CrazyPlatform` (SDK CrazyGames, подгружается на их домене), `ItchPlatform` ( itch-сборка без рекламных точек), `LocalPlatform` (localStorage + мок рекламы для дева).
 - `src/game` — чистая логика без Phaser: правила, генерация, экономика, сейв. Покрыта Vitest.
 - `src/render` — booth-сцена, персонажи из Graphics-примитивов, пропуск, доска правил, juice.
 - `src/scenes` — кабинет, смена, тест платформы.
