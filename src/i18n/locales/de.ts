@@ -19,6 +19,7 @@ export const de: Record<TranslationKey, string> = {
   subRank: 'ab Rang Pförtner',
   subPlayed: 'heute schon gespielt — bis morgen',
   lensBuy: 'Lupe {p}',
+  lensName: 'Lupe',
   detectorBuy: 'Detektor {p}',
   platformTest: 'Plattformtest',
   settings: 'Einstellungen',

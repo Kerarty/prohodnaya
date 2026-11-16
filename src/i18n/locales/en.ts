@@ -21,6 +21,7 @@ export const en = {
   subRank: 'from the Desk Officer rank',
   subPlayed: 'already played — come back tomorrow',
   lensBuy: 'Lens {p}',
+  lensName: 'Lens',
   detectorBuy: 'Detector {p}',
   platformTest: 'Platform test',
   settings: 'Settings',

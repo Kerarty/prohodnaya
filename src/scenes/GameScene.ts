@@ -43,7 +43,8 @@ const GUEST_SCALE = 0.8;
 const CARD_Y = 690;
 const BAR_Y = 1016;
 const COUNTER_Y = 965; // одна линия с детектором — над полосой терпения, не на столешнице
-const DETECTOR_Y = 965; // над полосой терпения — иначе кнопка лежит на баре и столешнице
+const TOOL_Y = 965; // основная линия инструментов — над полосой терпения
+const TOOL_LUPA_Y = 895; // Лупа над детектором, когда куплены оба
 const BTN_Y = 1150;
 const PATIENCE_MS = BALANCE.patienceMs;
 const MAX_ERRORS = BALANCE.maxErrors;
@@ -102,6 +103,7 @@ export class GameScene extends Phaser.Scene {
   private detectorCharges = 0;
   private detectorAdUses = 0;
   private detectorBtn: Phaser.GameObjects.Container | null = null;
+  private lensBtn: Phaser.GameObjects.Container | null = null;
   private finishTokenTotal = 0;
   private finishXpTotal = 0;
   private doubled = false;
@@ -173,6 +175,7 @@ export class GameScene extends Phaser.Scene {
     this.rewardText = null;
     this.doubleBtn = null;
     this.detectorBtn = null;
+    this.lensBtn = null;
 
     const launch: SceneLaunchData = pendingLaunch ?? data ?? {};
     pendingLaunch = null;
@@ -299,7 +302,7 @@ export class GameScene extends Phaser.Scene {
       { color: THEME.ERROR, width: 330 },
     );
 
-    if (s.tools.detector && this.runMode === 'shift') this.createDetectorButton(width);
+    this.createToolButtons();
 
     // Смена языка — в обычной смене (в блице/дуэли рестарт сбросил бы забег)
     if (this.runMode === 'shift') makeLangButton(this, width - 48, 44);
@@ -428,21 +431,48 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private createDetectorButton(width: number): void {
+  /** Правая колонка инструментов: Лупа (подсказка полей) над Детектором (заряды). */
+  private createToolButtons(): void {
+    const width = this.scale.width;
+    this.lensBtn?.destroy();
     this.detectorBtn?.destroy();
-    const ads = getPlatform().adsSupported;
-    const label =
-      this.detectorCharges > 0
-        ? t('detectorCharges', { n: this.detectorCharges })
-        : ads && this.detectorAdUses < BALANCE.detectorAdCharges
-          ? t('detectorAd')
-          : t('detectorNone');
-    this.detectorBtn = makeButton(this, width - 125, DETECTOR_Y, label, () => this.useDetector(), {
-      secondary: true,
-      width: 210,
-      height: 64,
-      fontSize: 20,
-    });
+
+    const lens = session().tools.lens;
+    const detector = session().tools.detector && this.runMode === 'shift';
+    // Когда инструментов два — Лупа над Детектором; один — он стоит на основной линии
+    const lensY = lens && detector ? TOOL_LUPA_Y : TOOL_Y;
+    const detectorY = TOOL_Y;
+
+    if (lens) {
+      this.lensBtn = makeButton(this, width - 125, lensY, t('lensName'), () => this.showLensHint(), {
+        secondary: true,
+        width: 210,
+        height: 56,
+        fontSize: 18,
+      });
+    }
+    if (detector) {
+      const ads = getPlatform().adsSupported;
+      const label =
+        this.detectorCharges > 0
+          ? t('detectorCharges', { n: this.detectorCharges })
+          : ads && this.detectorAdUses < BALANCE.detectorAdCharges
+            ? t('detectorAd')
+            : t('detectorNone');
+      this.detectorBtn = makeButton(this, width - 125, detectorY, label, () => this.useDetector(), {
+        secondary: true,
+        width: 210,
+        height: 56,
+        fontSize: 20,
+      });
+    }
+  }
+
+  /** Лупа: подсветить все поля пропуска — подсказка, куда можно тапать. */
+  private showLensHint(): void {
+    if (this.busy) return;
+    this.card?.highlightAllFields();
+    sfx.tap();
   }
 
   /** Rewarded с паузой и заглушением звука (п. 4.7 правил Яндекса). */
@@ -497,7 +527,7 @@ export class GameScene extends Phaser.Scene {
       void this.showRewardedSafe(() => {
         this.detectorCharges += 1;
         this.detectorAdUses += 1;
-        this.createDetectorButton(this.scale.width);
+        this.createToolButtons();
       }).then((r) => {
         if (r === 'shown') this.toast(t('toastChargeGot'));
       });
@@ -505,7 +535,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.detectorCharges -= 1;
-    this.createDetectorButton(this.scale.width);
+    this.createToolButtons();
     const app = this.queue[this.index];
     if (app.reason === 'forgery') {
       const { field } = describeForgery(app);
@@ -555,6 +585,7 @@ export class GameScene extends Phaser.Scene {
     this.approveBtn?.setAlpha(alpha);
     this.rejectBtn?.setAlpha(alpha);
     this.detectorBtn?.setAlpha(on ? 1 : 0.35);
+    this.lensBtn?.setAlpha(on ? 1 : 0.35);
   }
 
   private showApplication(): void {

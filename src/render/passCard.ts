@@ -211,6 +211,13 @@ export class PassCard extends Phaser.GameObjects.Container {
     this.scene.tweens.add({ targets: ov, alpha: 0.22, duration: 700 });
   }
 
+  /** Лупа: подсветить все поля сразу — подсказка, куда можно тапать. */
+  highlightAllFields(): void {
+    (['head', 'body', 'eyes', 'accessory', 'expiry', 'signature'] as const).forEach((f, i) => {
+      this.scene?.time.delayedCall(i * 90, () => this.softHighlight(f));
+    });
+  }
+
   /** Мягкая жёлтая подсветка поля (Лупа) — гаснет сама. */
   softHighlight(field: DocFieldId): void {
     if (!this.scene) return;

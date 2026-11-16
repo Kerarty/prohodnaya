@@ -20,6 +20,7 @@ export const ru: Record<TranslationKey, string> = {
   subRank: 'со звания Дежурный',
   subPlayed: 'уже сыграна — завтра',
   lensBuy: 'Лупа {p}',
+  lensName: 'Лупа',
   detectorBuy: 'Детектор {p}',
   platformTest: 'Тест платформы',
   settings: 'Настройки',

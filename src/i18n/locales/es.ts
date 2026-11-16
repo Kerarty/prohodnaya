@@ -19,6 +19,7 @@ export const es: Record<TranslationKey, string> = {
   subRank: 'desde el rango de Guardia',
   subPlayed: 'ya jugado — vuelve mañana',
   lensBuy: 'Lupa {p}',
+  lensName: 'Lupa',
   detectorBuy: 'Detector {p}',
   platformTest: 'Prueba de plataforma',
   settings: 'Ajustes',
