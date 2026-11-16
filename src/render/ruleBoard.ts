@@ -3,6 +3,8 @@ import { COLOR_HEX } from '../game/attributes';
 import type { BodyForm, HeadForm } from '../game/attributes';
 import type { Rule } from '../game/rules';
 import { drawHardShadow, FONT, INK_HEX, THEME } from './theme';
+import { t } from '../i18n';
+import { ruleText } from '../i18n/labels';
 
 const ROW_H = 56;
 
@@ -45,7 +47,7 @@ export function drawRuleBoard(
   board.add(head);
   board.add(
     scene.add
-      .text(0, -half + 30, 'ПРАВИЛА', { fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold' })
+      .text(0, -half + 30, t('rulesTitle'), { fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3),
   );
@@ -59,7 +61,7 @@ export function drawRuleBoard(
     board.add(rowBg);
     board.add(
       scene.add
-        .text(-width / 2 + 34, y, rule.text, {
+        .text(-width / 2 + 34, y, ruleText(rule.id), {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,

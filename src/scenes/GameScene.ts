@@ -29,6 +29,7 @@ import { bulbWave, confetti, spawnThought } from '../render/juice';
 import { PassCard } from '../render/passCard';
 import { drawRuleBoard } from '../render/ruleBoard';
 import { drawHardShadow, FONT, INK_HEX, THEME } from '../render/theme';
+import { t } from '../i18n';
 import { sfx } from '../systems/sfx';
 import { makeButton } from '../ui/button';
 import { createMatchAPI } from '../net/matchApi';
@@ -126,7 +127,7 @@ export class GameScene extends Phaser.Scene {
   private resultShown = false;
   private duelMatchId: string | null = null;
   private duelStartAt = 0;
-  private duelOpponentName = 'Соперник';
+  private duelOpponentName = t('opponentDefault');
   private duelReported = false;
   private duelOutcome: MatchOutcome | null = null;
   private matchApi: MatchAPI | null = null;
@@ -187,7 +188,7 @@ export class GameScene extends Phaser.Scene {
       this.seed = launch.seed ?? newShiftSeed(launchCounter++);
       this.duelMatchId = launch.matchId ?? null;
       this.duelStartAt = launch.startAt ?? Date.now() + BALANCE.duelCountdownMs;
-      this.duelOpponentName = launch.opponentName ?? 'Соперник';
+      this.duelOpponentName = launch.opponentName ?? t('opponentDefault');
       // API дуэли: HTTP-клиент к бандл-серверу или бот (probe ~0.8 с)
       void createMatchAPI().then((api) => {
         this.matchApi = api;
@@ -270,7 +271,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.runMode === 'duel') {
       this.opponentText = this.add
-        .text(width - 40, COUNTER_Y, 'Соперник: 0', {
+        .text(width - 40, COUNTER_Y, t('opponentScore', { score: 0 }), {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
@@ -284,7 +285,7 @@ export class GameScene extends Phaser.Scene {
       this,
       width / 2 - 175,
       BTN_Y,
-      'Пропустить',
+      t('approve'),
       () => this.decide('approve'),
       { color: THEME.SUCCESS, width: 330 },
     );
@@ -292,7 +293,7 @@ export class GameScene extends Phaser.Scene {
       this,
       width / 2 + 175,
       BTN_Y,
-      'Развернуть',
+      t('reject'),
       () => this.decide('reject'),
       { color: THEME.ERROR, width: 330 },
     );
@@ -300,7 +301,7 @@ export class GameScene extends Phaser.Scene {
     if (s.tools.detector && this.runMode === 'shift') this.createDetectorButton(width);
 
     // выход в кабинет из любого режима (спека: «закончить игру»)
-    makeButton(this, 44, 40, 'Меню', () => this.exitToMenu(), {
+    makeButton(this, 44, 40, t('menu'), () => this.exitToMenu(), {
       secondary: true,
       width: 72,
       height: 72,
@@ -344,7 +345,7 @@ export class GameScene extends Phaser.Scene {
       // дуэль ждёт startAt (общий для обоих игроков момент старта)
       const waitMs = this.duelStartAt - Date.now();
       if (waitMs > 0) {
-        this.countdownText?.setText(`Старт через ${Math.ceil(waitMs / 1000)}`);
+        this.countdownText?.setText(t('startIn', { s: Math.ceil(waitMs / 1000) }));
         return;
       }
       this.startRun();
@@ -399,17 +400,17 @@ export class GameScene extends Phaser.Scene {
 
   private updateCounter(remainingMs?: number): void {
     if (this.runMode === 'shift') {
-      const label = this.isDaily ? 'Дневная смена' : this.isNight ? 'Ночная смена' : `Смена ${this.shift}`;
+      const label = this.isDaily ? t('dailyName') : this.isNight ? t('nightName') : t('shiftN', { n: this.shift });
       // Ошибки из брошенного сейва могут быть выше лимита — в интерфейсе не показываем «4/3»
       const shownErrors = Math.min(this.errors, MAX_ERRORS);
       this.counter?.setText(
-        `${label} · Заявка ${this.index + 1}/${this.queue.length} · Ошибки: ${shownErrors}/${MAX_ERRORS}`,
+        `${label} · ${t('entryOf', { i: this.index + 1, n: this.queue.length })} · ${t('errorsOf', { e: shownErrors, m: MAX_ERRORS })}`,
       );
       return;
     }
-    const label = this.runMode === 'blitz' ? 'Блиц' : 'Дуэль';
-    const secs = remainingMs === undefined ? '' : `${Math.ceil(remainingMs / 1000)} с · `;
-    this.counter?.setText(`${label} · ${secs}Верно: ${this.correct} · Ошибки: ${this.errors}`);
+    const label = this.runMode === 'blitz' ? t('blitzName') : t('duelName');
+    const secs = remainingMs === undefined ? '' : t('secLeft', { s: Math.ceil(remainingMs / 1000) });
+    this.counter?.setText(`${label} · ${secs}${t('runCounter', { c: this.correct, e: this.errors })}`);
   }
 
   private async pollOpponent(): Promise<void> {
@@ -417,7 +418,7 @@ export class GameScene extends Phaser.Scene {
     try {
       const poll = await this.matchApi.pollMatch(this.duelMatchId);
       this.opponentScore = poll.opponentScore;
-      this.opponentText?.setText(`Соперник: ${poll.opponentScore}`);
+      this.opponentText?.setText(t('opponentScore', { score: poll.opponentScore }));
     } catch {
       // сетевая ошибка — попробуем на следующем опросе
     }
@@ -428,10 +429,10 @@ export class GameScene extends Phaser.Scene {
     const ads = getPlatform().adsSupported;
     const label =
       this.detectorCharges > 0
-        ? `Детектор (${this.detectorCharges})`
+        ? t('detectorCharges', { n: this.detectorCharges })
         : ads && this.detectorAdUses < BALANCE.detectorAdCharges
-          ? 'Детектор +AD'
-          : 'Детектор —';
+          ? t('detectorAd')
+          : t('detectorNone');
     this.detectorBtn = makeButton(this, width - 125, DETECTOR_Y, label, () => this.useDetector(), {
       secondary: true,
       width: 210,
@@ -483,7 +484,7 @@ export class GameScene extends Phaser.Scene {
     if (this.detectorCharges <= 0) {
       const ads = getPlatform().adsSupported;
       if (!ads || this.detectorAdUses >= BALANCE.detectorAdCharges) {
-        this.toast('Заряды детектора на смену исчерпаны');
+        this.toast(t('toastDetectorDone'));
         // Без рекламы кнопка «пустышка» не нужна
         if (!ads) this.detectorBtn?.destroy();
         return;
@@ -494,7 +495,7 @@ export class GameScene extends Phaser.Scene {
         this.detectorAdUses += 1;
         this.createDetectorButton(this.scale.width);
       }).then((r) => {
-        if (r === 'shown') this.toast('Заряд детектора получен');
+        if (r === 'shown') this.toast(t('toastChargeGot'));
       });
       return;
     }
@@ -505,9 +506,9 @@ export class GameScene extends Phaser.Scene {
     if (app.reason === 'forgery') {
       const { field } = describeForgery(app);
       this.card?.flashField(field);
-      this.toast('Несовпадение подсвечено');
+      this.toast(t('toastMismatch'));
     } else {
-      this.toast('Документ верен — проверяй правила дня');
+      this.toast(t('toastDocOk'));
     }
   }
 
@@ -670,7 +671,7 @@ export class GameScene extends Phaser.Scene {
           sfx.coin();
           confetti(this, this.scale.width / 2, 480);
           bulbWave(this, this.signBulbs);
-          this.floatText(`+${reward}`, '#3ec46d');
+          this.floatText(t('floatPlus', { n: reward }), '#3ec46d');
         });
         this.time.delayedCall(800, () => this.leaveGuest('ok'));
       } else {
@@ -784,7 +785,7 @@ export class GameScene extends Phaser.Scene {
     const info: { text: string; field?: DocFieldId } =
       app.reason === 'forgery' ? describeForgery(app) : describeViolation(app, this.rules);
 
-    const title = counted ? 'Ошибка' : 'Обучение';
+    const title = counted ? t('mistake') : t('training');
     const limitReached =
       counted && this.errors >= MAX_ERRORS && !this.isNight && this.runMode === 'shift';
     // Прощение за рекламу — только на платформах с рекламой (ГДД разд. 7)
@@ -825,7 +826,7 @@ export class GameScene extends Phaser.Scene {
     if (forgivePossible) {
       // Прощение ошибки за rewarded: ошибка аннулируется, смена продолжается (ГДД разд. 7)
       panel.add(
-        makeButton(this, 0, 50, 'Продолжить за рекламу', () => this.forgive(info, dim, panel), {
+        makeButton(this, 0, 50, t('continueAd'), () => this.forgive(info, dim, panel), {
           color: THEME.SUCCESS,
           width: 380,
           fontSize: 26,
@@ -836,7 +837,7 @@ export class GameScene extends Phaser.Scene {
           this,
           0,
           148,
-          'Завершить смену',
+          t('finishShift'),
           () => {
             dim.destroy();
             panel.destroy();
@@ -851,7 +852,7 @@ export class GameScene extends Phaser.Scene {
           this,
           0,
           110,
-          'Понятно',
+          t('ok'),
           () => {
             dim.destroy();
             panel.destroy();
@@ -863,12 +864,12 @@ export class GameScene extends Phaser.Scene {
     } else {
       const extra =
         this.runMode !== 'shift' && counted
-          ? `Минус ${BALANCE.blitzMistakePenaltyMs / 1000} с к таймеру`
+          ? t('penalty', { s: BALANCE.blitzMistakePenaltyMs / 1000 })
           : null;
       if (extra) {
         panel.add(
           this.add
-            .text(0, 40, extra, { fontFamily: FONT, fontSize: '22px', color: '#e27474', fontStyle: 'bold' })
+            .text(0, 40, t('penalty', { s: BALANCE.blitzMistakePenaltyMs / 1000 }), { fontFamily: FONT, fontSize: '22px', color: '#e27474', fontStyle: 'bold' })
             .setOrigin(0.5),
         );
       }
@@ -877,7 +878,7 @@ export class GameScene extends Phaser.Scene {
           this,
           0,
           110,
-          'Понятно',
+          t('ok'),
           () => {
             dim.destroy();
             panel.destroy();
@@ -904,10 +905,10 @@ export class GameScene extends Phaser.Scene {
       dim.destroy();
       panel.destroy();
       if (info.field) this.card?.flashField(info.field);
-      this.toast('Ошибка прощена — смена продолжается');
+      this.toast(t('toastForgiven'));
       this.leaveGuest('reject');
     }).then((r) => {
-      if (r === 'failed') this.toast('Реклама недоступна — смена будет завершена');
+      if (r === 'failed') this.toast(t('toastAdFailed'));
     });
   }
 
@@ -938,7 +939,7 @@ export class GameScene extends Phaser.Scene {
     g.lineStyle(3, THEME.INK, 1);
     g.strokeRoundedRect(width / 2 - 165, cy - 188, 330, 46, 12);
     this.add
-      .text(width / 2, cy - 165, 'Смена прервана', {
+      .text(width / 2, cy - 165, t('interrupted'), {
         fontFamily: FONT,
         fontSize: '28px',
         color: '#ffffff',
@@ -947,24 +948,24 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3);
     this.add
-      .text(width / 2, cy - 80, `Допущено ошибок: ${Math.min(this.errors, MAX_ERRORS)} из ${MAX_ERRORS}`, {
+      .text(width / 2, cy - 80, t('interruptedErrors', { e: Math.min(this.errors, MAX_ERRORS), m: MAX_ERRORS }), {
         fontFamily: FONT,
         fontSize: '26px',
         color: INK_HEX,
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, cy - 30, `Жетоны: +${this.earnedTokens} · XP: +${this.earnedXp}`, {
+      .text(width / 2, cy - 30, t('rewardsLine', { t: this.earnedTokens, x: this.earnedXp }), {
         fontFamily: FONT,
         fontSize: '24px',
         color: INK_HEX,
       })
       .setOrigin(0.5);
-    makeButton(this, width / 2, cy + 50, 'Новая смена', () => this.scene.restart(), {
+    makeButton(this, width / 2, cy + 50, t('newShift'), () => this.scene.restart(), {
       color: THEME.SUCCESS,
       width: 320,
     });
-    makeButton(this, width / 2, cy + 145, 'В меню', () => this.exitToMenuAfterResults(), {
+    makeButton(this, width / 2, cy + 145, t('toMenu'), () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });
@@ -994,10 +995,10 @@ export class GameScene extends Phaser.Scene {
     const rankAfter = rankFor(s.xp);
     const cy = height / 2;
     const title = this.isDaily
-      ? 'Дневная смена завершена'
+      ? t('dailyDone')
       : this.isNight
-        ? 'Ночная смена завершена'
-        : `Смена ${this.shift} завершена`;
+        ? t('nightDone')
+        : t('shiftDone', { n: this.shift });
 
     this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const g = this.add.graphics();
@@ -1025,7 +1026,7 @@ export class GameScene extends Phaser.Scene {
       .text(
         width / 2,
         cy - 230,
-        `Верно: ${this.correct} из ${this.queue.length} · ошибок: ${Math.min(this.errors, MAX_ERRORS)}`,
+        t('doneStats', { c: this.correct, n: this.queue.length, e: Math.min(this.errors, MAX_ERRORS) }),
         {
           fontFamily: FONT,
           fontSize: '26px',
@@ -1034,7 +1035,7 @@ export class GameScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
     this.rewardText = this.add
-      .text(width / 2, cy - 180, `Жетоны: +${this.finishTokenTotal} · XP: +${this.finishXpTotal}`, {
+      .text(width / 2, cy - 180, t('rewardsLine', { t: this.finishTokenTotal, x: this.finishXpTotal }), {
         fontFamily: FONT,
         fontSize: '27px',
         color: INK_HEX,
@@ -1043,7 +1044,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
     if (this.isDaily) {
       this.add
-        .text(width / 2, cy - 130, `Скор дневной смены: ${dailyScore(this.correct, this.fastCount, this.errors)}`, {
+        .text(width / 2, cy - 130, t('dailyScoreLine', { s: dailyScore(this.correct, this.fastCount, this.errors) }), {
           fontFamily: FONT,
           fontSize: '22px',
           color: INK_HEX,
@@ -1052,7 +1053,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (rankAfter.index > this.rankIndexStart) {
       this.add
-        .text(width / 2, cy - 80, `Новое звание: ${rankAfter.title}`, {
+        .text(width / 2, cy - 80, t('newRank', { r: rankAfter.title }), {
           fontFamily: FONT,
           fontSize: '27px',
           color: '#2f9e5f',
@@ -1072,18 +1073,18 @@ export class GameScene extends Phaser.Scene {
         this,
         width / 2,
         cy + 110 - lift,
-        '×2 жетоны за рекламу',
+        t('doubleAd'),
         () => this.applyDoubleReward(),
         { color: THEME.PANEL_DARK, width: 380, fontSize: 26 },
       );
     }
     const nextY = cy + (ads ? 215 : 110) - lift;
     const menuY = cy + (ads ? 305 : 195) - lift;
-    makeButton(this, width / 2, nextY, 'Следующая смена', () => this.scene.restart(), {
+    makeButton(this, width / 2, nextY, t('nextShift'), () => this.scene.restart(), {
       color: THEME.ACCENT,
       width: 340,
     });
-    makeButton(this, width / 2, menuY, 'В меню', () => this.exitToMenuAfterResults(), {
+    makeButton(this, width / 2, menuY, t('toMenu'), () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });
@@ -1099,7 +1100,7 @@ export class GameScene extends Phaser.Scene {
       sfx.coin();
       this.doubleBtn?.destroy();
       this.doubleBtn = null;
-      this.rewardText?.setText(`Жетоны: +${this.finishTokenTotal * 2} · XP: +${this.finishXpTotal}`);
+      this.rewardText?.setText(t('rewardsLine', { t: this.finishTokenTotal * 2, x: this.finishXpTotal }));
     });
   }
 
@@ -1144,7 +1145,7 @@ export class GameScene extends Phaser.Scene {
     g.lineStyle(3, THEME.INK, 1);
     g.strokeRoundedRect(width / 2 - 190, cy - 275, 380, 56, 14);
     this.add
-      .text(width / 2, cy - 247, 'Блиц завершён', {
+      .text(width / 2, cy - 247, t('blitzDone'), {
         fontFamily: FONT,
         fontSize: '30px',
         color: '#ffffff',
@@ -1153,14 +1154,14 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3);
     this.add
-      .text(width / 2, cy - 160, `Верно: ${this.correct} · ошибок: ${this.errors}`, {
+      .text(width / 2, cy - 160, t('runStats', { c: this.correct, e: this.errors }), {
         fontFamily: FONT,
         fontSize: '26px',
         color: INK_HEX,
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, cy - 100, `Скор: ${score}`, {
+      .text(width / 2, cy - 100, t('scoreLine', { s: score }), {
         fontFamily: FONT,
         fontSize: '40px',
         color: INK_HEX,
@@ -1168,17 +1169,17 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, cy - 40, `Личный рекорд: ${s.mp.blitzBest}`, {
+      .text(width / 2, cy - 40, t('bestLine', { s: s.mp.blitzBest }), {
         fontFamily: FONT,
         fontSize: '22px',
         color: INK_HEX,
       })
       .setOrigin(0.5);
-    makeButton(this, width / 2, cy + 60, 'Ещё раз', () => {
+    makeButton(this, width / 2, cy + 60, t('again'), () => {
       pendingLaunch = { blitz: true };
       this.scene.restart();
     }, { color: THEME.ACCENT, width: 340 });
-    makeButton(this, width / 2, cy + 145, 'В меню', () => this.exitToMenuAfterResults(), {
+    makeButton(this, width / 2, cy + 145, t('toMenu'), () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });
@@ -1190,7 +1191,7 @@ export class GameScene extends Phaser.Scene {
     const cy = height / 2;
     this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const waiting = this.add
-      .text(width / 2, cy, 'Ожидание результата соперника…', {
+      .text(width / 2, cy, t('waitingResult'), {
         fontFamily: FONT,
         fontSize: '26px',
         color: INK_HEX,
@@ -1223,7 +1224,7 @@ export class GameScene extends Phaser.Scene {
       console.error('[duel] не удалось завершить матч', e);
       waiting.destroy();
       this.add
-        .text(width / 2, cy, 'Ошибка сети — матч не завершён', {
+        .text(width / 2, cy, t('duelNetError'), {
           fontFamily: FONT,
           fontSize: '26px',
           color: INK_HEX,
@@ -1231,7 +1232,7 @@ export class GameScene extends Phaser.Scene {
           padding: { x: 16, y: 8 },
         })
         .setOrigin(0.5);
-      makeButton(this, width / 2, cy + 90, 'В меню', () => this.scene.start('Menu'), {
+      makeButton(this, width / 2, cy + 90, t('toMenu'), () => this.scene.start('Menu'), {
         secondary: true,
         width: 280,
       });
@@ -1258,7 +1259,7 @@ export class GameScene extends Phaser.Scene {
     else s.mp.duelDraws += 1;
     void flushSession();
 
-    const title = finalWinner === 'me' ? 'ПОБЕДА' : finalWinner === 'opponent' ? 'ПОРАЖЕНИЕ' : 'НИЧЬЯ';
+    const title = finalWinner === 'me' ? t('win') : finalWinner === 'opponent' ? t('lose') : t('draw');
 
     this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const g = this.add.graphics();
@@ -1281,7 +1282,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3);
     this.add
-      .text(width / 2, cy - 160, `Ты: ${score} · ${this.duelOpponentName}: ${opponentScore}`, {
+      .text(width / 2, cy - 160, t('duelScore', { s: score, opp: this.duelOpponentName, os: opponentScore }), {
         fontFamily: FONT,
         fontSize: '27px',
         color: INK_HEX,
@@ -1289,13 +1290,13 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, cy - 100, `Рейтинг: ${s.mp.duelRating} (${delta >= 0 ? '+' : ''}${delta})`, {
+      .text(width / 2, cy - 100, t('ratingLine', { r: s.mp.duelRating, d: `${delta >= 0 ? '+' : ''}${delta}` }), {
         fontFamily: FONT,
         fontSize: '26px',
         color: INK_HEX,
       })
       .setOrigin(0.5);
-    makeButton(this, width / 2, cy + 60, 'В меню', () => this.exitToMenuAfterResults(), {
+    makeButton(this, width / 2, cy + 60, t('toMenu'), () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });

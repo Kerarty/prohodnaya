@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { getPlatform, initPlatform } from './platform';
+import { initLocale } from './i18n';
 import { flushSession, initSession, loadSession, session } from './game/session';
 import { sfx } from './systems/sfx';
 import { BootScene } from './scenes/BootScene';
@@ -36,6 +37,10 @@ window.addEventListener('unhandledrejection', (e) => {
 
 async function bootstrap(): Promise<void> {
   const platform = await initPlatform();
+
+  // Локализация: язык платформы (требование Яндекса 2.14 — автоопределение),
+  // ?lang=xx в адресе для ручной проверки
+  initLocale(platform.getLang());
 
   // Пауза извне (реклама, сворачивание вкладки): глушим звук (п. 4.7 правил Яндекса).
   platform.onStateChanged(() => {

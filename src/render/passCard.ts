@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
+import { COLOR_HEX } from '../game/attributes';
 import {
-  ACCESSORY_LABEL,
-  BODY_COLOR_LABEL,
-  BODY_FORM_LABEL,
-  COLOR_HEX,
-  EYES_LABEL,
-  HEAD_COLOR_LABEL,
-  HEAD_FORM_LABEL,
-} from '../game/attributes';
+  accessoryLabel,
+  bodyColorLabel,
+  bodyFormLabel,
+  eyesLabel,
+  headColorLabel,
+  headFormLabel,
+} from '../i18n/labels';
+import { t } from '../i18n';
 import type { DocFieldId, PassDoc } from '../game/application';
 import { drawHardShadow, FONT, INK_HEX, THEME } from './theme';
 
@@ -73,7 +74,7 @@ export class PassCard extends Phaser.GameObjects.Container {
 
     this.add(
       scene.add
-        .text(10, -CARD_H / 2 + 32, 'ПРОПУСК', {
+        .text(10, -CARD_H / 2 + 32, t('passTitle'), {
           fontFamily: FONT,
           fontSize: '26px',
           color: '#ffffff',
@@ -84,15 +85,15 @@ export class PassCard extends Phaser.GameObjects.Container {
     );
     this.add(scene.add.circle(-78, -CARD_H / 2 + 32, 9, 0xffffff, 0.85));
 
-    this.addRow(scene, 'head', miniHead(scene, doc), 'Голова', `${HEAD_FORM_LABEL[doc.headForm]} · ${HEAD_COLOR_LABEL[doc.headColor]}`);
-    this.addRow(scene, 'body', miniBody(scene, doc), 'Тело', `${BODY_FORM_LABEL[doc.bodyForm]} · ${BODY_COLOR_LABEL[doc.bodyColor]}`);
-    this.addRow(scene, 'eyes', miniEyes(scene, doc), 'Глаза', EYES_LABEL[doc.eyes]);
-    this.addRow(scene, 'accessory', miniAccessory(scene, doc), 'Аксессуар', ACCESSORY_LABEL[doc.accessory]);
+    this.addRow(scene, 'head', miniHead(scene, doc), t('headLabel'), `${headFormLabel(doc.headForm)} · ${headColorLabel(doc.headColor)}`);
+    this.addRow(scene, 'body', miniBody(scene, doc), t('bodyLabel'), `${bodyFormLabel(doc.bodyForm)} · ${bodyColorLabel(doc.bodyColor)}`);
+    this.addRow(scene, 'eyes', miniEyes(scene, doc), t('eyesLabel'), eyesLabel(doc.eyes));
+    this.addRow(scene, 'accessory', miniAccessory(scene, doc), t('accLabel'), accessoryLabel(doc.accessory));
 
     // Документные признаки: срок действия и подпись (ГДД разд. 3.1)
     this.add(
       scene.add
-        .text(-CARD_W / 2 + 34, 138, 'Срок', {
+        .text(-CARD_W / 2 + 34, 138, t('expiryLabel'), {
           fontFamily: FONT,
           fontSize: '11px',
           color: INK_HEX,
@@ -103,7 +104,7 @@ export class PassCard extends Phaser.GameObjects.Container {
     );
     this.add(
       scene.add
-        .text(-CARD_W / 2 + 34, 160, `Годен до: день ${doc.expiry}`, {
+        .text(-CARD_W / 2 + 34, 160, t('validUntil', { d: doc.expiry }), {
           fontFamily: FONT,
           fontSize: '17px',
           color: INK_HEX,
@@ -125,7 +126,7 @@ export class PassCard extends Phaser.GameObjects.Container {
     this.add(scene.add.container(CARD_W / 2 - 44, 146, [sig]));
     this.add(
       scene.add
-        .text(CARD_W / 2 - 44, 170, doc.signature ? 'подпись' : 'нет подписи', {
+        .text(CARD_W / 2 - 44, 170, doc.signature ? t('signed') : t('unsigned'), {
           fontFamily: FONT,
           fontSize: '13px',
           color: INK_HEX,
@@ -235,8 +236,8 @@ export class PassCard extends Phaser.GameObjects.Container {
     g.lineStyle(5, color, 1);
     g.strokeRoundedRect(-98, -35, 196, 70, 10);
     const hex = ok ? '#3ec46d' : '#ff4757';
-    const t = this.scene.add
-      .text(0, 0, ok ? 'ПРОПУСК' : 'ОТКАЗ', {
+    const stampText = this.scene.add
+      .text(0, 0, ok ? t('stampPass') : t('stampReject'), {
         fontFamily: FONT,
         fontSize: '34px',
         color: hex,
@@ -244,7 +245,7 @@ export class PassCard extends Phaser.GameObjects.Container {
       })
       .setOrigin(0.5)
       .setLetterSpacing(3);
-    const stamp = this.scene.add.container(0, 30, [g, t]).setAngle(-12).setAlpha(0.95).setScale(2.4);
+    const stamp = this.scene.add.container(0, 30, [g, stampText]).setAngle(-12).setAlpha(0.95).setScale(2.4);
     this.add(stamp);
     this.scene.tweens.add({
       targets: stamp,

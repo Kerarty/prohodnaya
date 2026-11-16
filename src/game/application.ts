@@ -6,14 +6,8 @@ import type {
   EyesType,
   HeadForm,
 } from './attributes';
-import {
-  ACCESSORY_LABEL,
-  BODY_COLOR_LABEL,
-  BODY_FORM_LABEL,
-  EYES_LABEL,
-  HEAD_COLOR_LABEL,
-  HEAD_FORM_LABEL,
-} from './attributes';
+import { bodyColorLabel, bodyFormLabel, headColorLabel, headFormLabel, ruleText, accessoryLabel, eyesLabel } from '../i18n/labels';
+import { t } from '../i18n';
 import type { Rule } from './rules';
 
 export type Decision = 'approve' | 'reject';
@@ -114,40 +108,40 @@ export function describeForgery(app: Application): { text: string; field: DocFie
   if (d.headColor !== g.headColor) {
     return {
       field: 'head',
-      text: `Гость: ${HEAD_COLOR_LABEL[g.headColor]} голова.\nПропуск: ${HEAD_COLOR_LABEL[d.headColor]}. Подделка!`,
+      text: t('forgHeadColor', { a: headColorLabel(g.headColor), b: headColorLabel(d.headColor) }),
     };
   }
   if (d.headForm !== g.headForm) {
     return {
       field: 'head',
-      text: `Гость: ${HEAD_FORM_LABEL[g.headForm]} голова.\nПропуск: ${HEAD_FORM_LABEL[d.headForm]}. Подделка!`,
+      text: t('forgHeadForm', { a: headFormLabel(g.headForm), b: headFormLabel(d.headForm) }),
     };
   }
   if (d.bodyColor !== g.bodyColor) {
     return {
       field: 'body',
-      text: `Гость: ${BODY_COLOR_LABEL[g.bodyColor]} тело.\nПропуск: ${BODY_COLOR_LABEL[d.bodyColor]}. Подделка!`,
+      text: t('forgBodyColor', { a: bodyColorLabel(g.bodyColor), b: bodyColorLabel(d.bodyColor) }),
     };
   }
   if (d.bodyForm !== g.bodyForm) {
     return {
       field: 'body',
-      text: `Гость: ${BODY_FORM_LABEL[g.bodyForm]} тело.\nПропуск: ${BODY_FORM_LABEL[d.bodyForm]}. Подделка!`,
+      text: t('forgBodyForm', { a: bodyFormLabel(g.bodyForm), b: bodyFormLabel(d.bodyForm) }),
     };
   }
   if (d.eyes !== g.eyes) {
     return {
       field: 'eyes',
-      text: `Гость: глаза — ${EYES_LABEL[g.eyes]}.\nПропуск: глаза — ${EYES_LABEL[d.eyes]}. Подделка!`,
+      text: t('forgEyes', { a: eyesLabel(g.eyes), b: eyesLabel(d.eyes) }),
     };
   }
   if (d.accessory !== g.accessory) {
     return {
       field: 'accessory',
-      text: `Гость: ${ACCESSORY_LABEL[g.accessory]}.\nПропуск: ${ACCESSORY_LABEL[d.accessory]}. Подделка!`,
+      text: t('forgAcc', { a: accessoryLabel(g.accessory), b: accessoryLabel(d.accessory) }),
     };
   }
-  return { field: 'head', text: 'Пропуск не совпадает с гостем.' };
+  return { field: 'head', text: t('forgUnknown') };
 }
 
 const ATTR_FIELDS = [
@@ -170,7 +164,18 @@ export function describeViolation(
   rules: readonly Rule[],
 ): { text: string; field: DocFieldId } {
   const rule = rules.find((r) => r.id === app.ruleId) ?? rules[0];
-  const field: DocFieldId = rule.docs?.[0] ?? 'head';
-  const subject = rule.docs?.length ? 'Пропуск' : 'Гость';
-  return { field, text: `${subject} нарушает правило:\n«${rule.text}».` };
+  // Подсветка — первый гостевой признак из иконки правила (аудит п.11), иначе документный
+  const iconField: DocFieldId | null =
+    rule.icon.headColor || rule.icon.headForm
+      ? 'head'
+      : rule.icon.bodyColor || rule.icon.bodyForm
+        ? 'body'
+        : rule.icon.eyes
+          ? 'eyes'
+          : rule.icon.accessory
+            ? 'accessory'
+            : null;
+  const field: DocFieldId = rule.docs?.[0] ?? iconField ?? 'head';
+  const key = rule.docs?.length ? 'violPass' : 'violGuest';
+  return { field, text: t(key, { rule: ruleText(rule.id) }) };
 }

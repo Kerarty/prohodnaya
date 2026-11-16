@@ -196,7 +196,7 @@ export class HttpMatchAPI implements MatchAPI {
   }
 
   async quickMatch(): Promise<{ matchId: string; matched: boolean }> {
-    const r = await this.post('/api/match/quick', { playerId: this.playerId, name: this.name });
+    const r = await this.post<{ matchId: string; status: string }>('/api/match/quick', { playerId: this.playerId, name: this.name });
     return { matchId: r.matchId, matched: r.status === 'matched' };
   }
 
@@ -218,7 +218,7 @@ export class HttpMatchAPI implements MatchAPI {
       seed: matched ? (s.seed ?? null) : null,
       durationMs: matched ? (s.durationMs ?? null) : null,
       startAt: matched ? (s.startAt ?? null) : null,
-      opponentName: matched ? (opponent?.name ?? 'Соперник') : null,
+      opponentName: matched ? (opponent?.name ?? null) : null,
       opponentScore: opponent?.score ?? 0,
       opponentFinished: Boolean(opponent?.finished),
       winner,
@@ -227,7 +227,10 @@ export class HttpMatchAPI implements MatchAPI {
   }
 
   async reportResult(matchId: string, score: number): Promise<MatchOutcome> {
-    const r = await this.post(`/api/match/${matchId}/result`, { playerId: this.playerId, score });
+    const r = await this.post<{ winner: string | null; players?: MatchPlayerState[]; rating?: { delta: number } | null }>(
+      `/api/match/${matchId}/result`,
+      { playerId: this.playerId, score },
+    );
     const winnerRaw: string | null = r.winner ?? null;
     const opponent = (r.players ?? []).find((p: MatchPlayerState) => p.playerId !== this.playerId);
     const winner: MatchOutcome['winner'] | null =
@@ -241,7 +244,7 @@ export class HttpMatchAPI implements MatchAPI {
     return outcome;
   }
 
-  private async post(path: string, body: unknown): Promise<any> {
+  private async post<T>(path: string, body: unknown): Promise<T> {
     const r = await fetch(this.baseUrl + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

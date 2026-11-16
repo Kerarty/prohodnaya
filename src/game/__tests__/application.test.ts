@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { initLocale } from '../../i18n';
 import { attrDiffCount, describeForgery, makeFixedQueue } from '../application';
 import { RULE_BLUE_HEADS } from '../rules';
+
+// Тексты карточек проверяются в исходной локали
+initLocale('ru');
 
 function diffCount(app: ReturnType<typeof makeFixedQueue>[number]): number {
   return attrDiffCount(app.doc, app.guest);

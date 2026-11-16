@@ -15,8 +15,6 @@ export type RuleDocField = 'expiry' | 'signature';
 
 export interface Rule {
   id: number;
-  /** Формулировка на доске — ≤ 8 слов (ГДД разд. 4). */
-  text: string;
   difficulty: RuleDifficulty;
   /** Номер смены, с которой правило входит в ротацию (ГДД разд. 4). */
   fromShift: number;
@@ -36,7 +34,6 @@ export interface Rule {
  */
 export const RULE_BLUE_HEADS: Rule = {
   id: 1,
-  text: 'Не пускать синие головы',
   difficulty: 1,
   fromShift: 1,
   icon: { headColor: 'blue' },
@@ -45,7 +42,6 @@ export const RULE_BLUE_HEADS: Rule = {
 
 export const RULE_TRIANGLE_HEADS: Rule = {
   id: 2,
-  text: 'Не пускать треугольные головы',
   difficulty: 1,
   fromShift: 2,
   icon: { headForm: 'triangle' },
@@ -54,7 +50,6 @@ export const RULE_TRIANGLE_HEADS: Rule = {
 
 export const RULE_RED_BODIES: Rule = {
   id: 3,
-  text: 'Не пускать красные тела',
   difficulty: 1,
   fromShift: 2,
   icon: { bodyColor: 'red' },
@@ -63,7 +58,6 @@ export const RULE_RED_BODIES: Rule = {
 
 export const RULE_OVAL_BODIES: Rule = {
   id: 4,
-  text: 'Не пускать овальные тела',
   difficulty: 1,
   fromShift: 3,
   icon: { bodyForm: 'oval' },
@@ -72,7 +66,6 @@ export const RULE_OVAL_BODIES: Rule = {
 
 export const RULE_HEXAGON_HEADS: Rule = {
   id: 5,
-  text: 'Не пускать шестиугольные головы',
   difficulty: 1,
   fromShift: 4,
   icon: { headForm: 'hexagon' },
@@ -81,7 +74,6 @@ export const RULE_HEXAGON_HEADS: Rule = {
 
 export const RULE_HATS: Rule = {
   id: 6,
-  text: 'Не пускать головы в шляпах',
   difficulty: 2,
   fromShift: 4,
   icon: { accessory: 'hat' },
@@ -90,7 +82,6 @@ export const RULE_HATS: Rule = {
 
 export const RULE_GREEN_BODIES: Rule = {
   id: 7,
-  text: 'Не пускать зелёные тела',
   difficulty: 2,
   fromShift: 5,
   icon: { bodyColor: 'green' },
@@ -99,7 +90,6 @@ export const RULE_GREEN_BODIES: Rule = {
 
 export const RULE_EXPIRED: Rule = {
   id: 8,
-  text: 'Не пускать просроченные пропуска',
   difficulty: 2,
   fromShift: 5,
   icon: {},
@@ -110,7 +100,6 @@ export const RULE_EXPIRED: Rule = {
 
 export const RULE_UNSIGNED: Rule = {
   id: 9,
-  text: 'Не пускать пропуска без подписи',
   difficulty: 2,
   fromShift: 6,
   icon: {},
@@ -120,7 +109,6 @@ export const RULE_UNSIGNED: Rule = {
 
 export const RULE_SQUARE_HEADS: Rule = {
   id: 10,
-  text: 'Не пускать квадратные головы',
   difficulty: 2,
   fromShift: 7,
   icon: { headForm: 'square' },
@@ -129,7 +117,6 @@ export const RULE_SQUARE_HEADS: Rule = {
 
 export const RULE_PURPLE_HEADS: Rule = {
   id: 11,
-  text: 'Не пускать фиолетовые головы',
   difficulty: 2,
   fromShift: 8,
   icon: { headColor: 'purple' },
@@ -138,7 +125,6 @@ export const RULE_PURPLE_HEADS: Rule = {
 
 export const RULE_ANTENNAS: Rule = {
   id: 12,
-  text: 'Не пускать головы с антеннами',
   difficulty: 2,
   fromShift: 8,
   icon: { accessory: 'antenna' },
@@ -147,7 +133,6 @@ export const RULE_ANTENNAS: Rule = {
 
 export const RULE_TRAPEZOID_BODIES: Rule = {
   id: 13,
-  text: 'Не пускать трапециевидные тела',
   difficulty: 3,
   fromShift: 9,
   icon: { bodyForm: 'trapezoid' },
@@ -156,7 +141,6 @@ export const RULE_TRAPEZOID_BODIES: Rule = {
 
 export const RULE_YELLOW_BODIES: Rule = {
   id: 14,
-  text: 'Не пускать жёлтые тела',
   difficulty: 3,
   fromShift: 9,
   icon: { bodyColor: 'yellow' },
@@ -165,7 +149,6 @@ export const RULE_YELLOW_BODIES: Rule = {
 
 export const RULE_ORANGE_HEADS: Rule = {
   id: 15,
-  text: 'Не пускать оранжевые головы',
   difficulty: 3,
   fromShift: 10,
   icon: { headColor: 'orange' },
@@ -174,7 +157,6 @@ export const RULE_ORANGE_HEADS: Rule = {
 
 export const RULE_SHORT_PASS: Rule = {
   id: 16,
-  text: 'Не пускать пропуска короче 3 дней',
   difficulty: 3,
   fromShift: 11,
   icon: {},
@@ -185,7 +167,6 @@ export const RULE_SHORT_PASS: Rule = {
 
 export const RULE_STRIPE_EYES: Rule = {
   id: 17,
-  text: 'Не пускать глаза-полоски',
   difficulty: 3,
   fromShift: 12,
   icon: { eyes: 'stripes' },
@@ -194,7 +175,6 @@ export const RULE_STRIPE_EYES: Rule = {
 
 export const RULE_HATS_EXCEPT_RED: Rule = {
   id: 18,
-  text: 'Шляпы запрещены, кроме красных голов',
   difficulty: 4,
   fromShift: 13,
   icon: { accessory: 'hat', headColor: 'red' },
@@ -203,7 +183,6 @@ export const RULE_HATS_EXCEPT_RED: Rule = {
 
 export const RULE_CIRCLE_ANTENNA: Rule = {
   id: 19,
-  text: 'Круглые головы с антеннами не пускать',
   difficulty: 4,
   fromShift: 14,
   icon: { headForm: 'circle', accessory: 'antenna' },
@@ -212,7 +191,6 @@ export const RULE_CIRCLE_ANTENNA: Rule = {
 
 export const RULE_SAME_COLOR: Rule = {
   id: 20,
-  text: 'Не пускать, если тело и голова одного цвета',
   difficulty: 4,
   fromShift: 15,
   icon: { headColor: 'red', bodyColor: 'red' },
@@ -221,7 +199,6 @@ export const RULE_SAME_COLOR: Rule = {
 
 export const RULE_EXPIRED_UNSIGNED: Rule = {
   id: 21,
-  text: 'Просроченное без подписи не пускать',
   difficulty: 4,
   fromShift: 16,
   icon: {},
@@ -232,7 +209,6 @@ export const RULE_EXPIRED_UNSIGNED: Rule = {
 
 export const RULE_GREEN_BODY_SQUARE_HEAD: Rule = {
   id: 22,
-  text: 'Зелёные тела с квадратной головой не пускать',
   difficulty: 5,
   fromShift: 17,
   icon: { bodyColor: 'green', headForm: 'square' },
@@ -241,7 +217,6 @@ export const RULE_GREEN_BODY_SQUARE_HEAD: Rule = {
 
 export const RULE_HEXAGON_STRIPE_EYES: Rule = {
   id: 23,
-  text: 'Шестиугольники с глазами-полосками не пускать',
   difficulty: 5,
   fromShift: 18,
   icon: { headForm: 'hexagon', eyes: 'stripes' },
@@ -250,7 +225,6 @@ export const RULE_HEXAGON_STRIPE_EYES: Rule = {
 
 export const RULE_ORANGE_BODY_ANTENNA: Rule = {
   id: 24,
-  text: 'Оранжевые тела с антеннами не пускать',
   difficulty: 5,
   fromShift: 19,
   icon: { bodyColor: 'orange', accessory: 'antenna' },
@@ -259,7 +233,6 @@ export const RULE_ORANGE_BODY_ANTENNA: Rule = {
 
 export const RULE_PURPLE_UNSIGNED: Rule = {
   id: 25,
-  text: 'Не пускать фиолетовые головы без подписи',
   difficulty: 5,
   fromShift: 20,
   icon: { headColor: 'purple' },

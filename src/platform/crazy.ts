@@ -4,6 +4,7 @@ import type { PlatformName, SaveData } from './types';
 /* Минимальные типы SDK CrazyGames v3 — только то, что используем. */
 interface CrazySdk {
   init(): Promise<void>;
+  environment: { locale: string };
   game: {
     loadingStart(): void;
     loadingComplete(): void;
@@ -122,6 +123,10 @@ export class CrazyPlatform extends LocalPlatform {
     } catch (e) {
       console.warn('[platform:crazy] gameplayStop упал', e);
     }
+  }
+
+  getLang(): string {
+    return this.sdk?.environment?.locale ?? 'en';
   }
 
   async save(data: SaveData): Promise<void> {

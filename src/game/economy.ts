@@ -1,5 +1,7 @@
 import balance from '../data/balance.json';
 import type { AdState } from './save';
+import { t } from '../i18n';
+import type { TranslationKey } from '../i18n';
 
 /** Все числа баланса — в data-файле (ГДД, «крутилки» разд. 5). */
 export const BALANCE = balance;
@@ -50,7 +52,7 @@ export function rankFor(xp: number): { index: number; title: string; nextXp: num
   }
   return {
     index,
-    title: ranks[index].title,
+    title: t(`rank_${index}` as TranslationKey),
     nextXp: index + 1 < ranks.length ? ranks[index + 1].xp : null,
   };
 }

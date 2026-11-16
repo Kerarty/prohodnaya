@@ -10,6 +10,8 @@ import { sfx } from '../systems/sfx';
 import { createMatchAPI, type MatchAPI } from '../net/matchApi';
 import { queueLaunch } from './GameScene';
 import { makeButton } from '../ui/button';
+import { t } from '../i18n';
+import { rankTitle } from '../i18n/labels';
 
 /**
  * Кабинет «Мульт-поп» (ГДД разд. 5–6 + план мультиплеера): вывеска-логотип,
@@ -104,7 +106,7 @@ export class MenuScene extends Phaser.Scene {
         }
       }
       this.add
-        .text(width / 2, 303, `${s.xp} XP · до «${BALANCE.ranks[rank.index + 1].title}» ${rank.nextXp - s.xp} XP`, {
+        .text(width / 2, 303, t('xpLine', { xp: s.xp, rank: rankTitle(rank.index + 1), left: rank.nextXp - s.xp }), {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
@@ -112,7 +114,7 @@ export class MenuScene extends Phaser.Scene {
         .setOrigin(0.5);
     } else {
       this.add
-        .text(width / 2, 303, `${s.xp} XP · максимальное звание`, {
+        .text(width / 2, 303, t('xpMax', { xp: s.xp }), {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
@@ -145,7 +147,7 @@ export class MenuScene extends Phaser.Scene {
       .text(
         width / 2,
         412,
-        `День ${sessionToday()} · серия ${s.bestStreak} · дуэли ${mp.duelWins}-${mp.duelLosses}-${mp.duelDraws} · рейтинг ${mp.duelRating}`,
+        t('statsLine', { day: sessionToday(), b: s.bestStreak, w: mp.duelWins, l: mp.duelLosses, draws: mp.duelDraws, r: mp.duelRating }),
         { fontFamily: FONT, fontSize: '19px', color: INK_HEX },
       )
       .setOrigin(0.5);
@@ -154,9 +156,9 @@ export class MenuScene extends Phaser.Scene {
     const resume = s.currentShift;
     const shiftLabel = resume
       ? resume.isNight
-        ? 'Продолжить ночную смену'
-        : 'Продолжить смену'
-      : 'Начать смену';
+        ? t('continueNight')
+        : t('continueShift')
+      : t('startShift');
     const dailyPlayed = s.dailyPlayed === dateKey();
     const nightPlayed = s.nightPlayed === dateKey();
     const unlocked = rank.index >= 1;
@@ -174,7 +176,7 @@ export class MenuScene extends Phaser.Scene {
       {
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 592, 'Блиц · 90 секунд', () => this.startBlitz(), {
+          makeButton(this, width / 2, 592, t('blitzButton'), () => this.startBlitz(), {
             color: THEME.ACCENT,
             width: 380,
             height: 72,
@@ -184,7 +186,7 @@ export class MenuScene extends Phaser.Scene {
       {
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 676, 'Дуэль', () => void this.startDuel(), {
+          makeButton(this, width / 2, 676, t('duelButton'), () => void this.startDuel(), {
             color: THEME.ACCENT,
             width: 380,
             height: 72,
@@ -198,7 +200,7 @@ export class MenuScene extends Phaser.Scene {
             this,
             width / 2,
             760,
-            'Дневная смена',
+            t('dailyButton'),
             () => this.startDaily(),
             {
               secondary: true,
@@ -206,9 +208,9 @@ export class MenuScene extends Phaser.Scene {
               height: 72,
               fontSize: 24,
               subtitle: !unlocked
-                ? 'со звания Дежурный'
+                ? t('subRank')
                 : dailyPlayed
-                  ? 'уже сыграна — завтра'
+                  ? t('subPlayed')
                   : undefined,
             },
           ),
@@ -220,7 +222,7 @@ export class MenuScene extends Phaser.Scene {
             this,
             width / 2,
             844,
-            'Ночная смена ×1.5',
+            t('nightButton'),
             () => this.startNight(),
             {
               secondary: true,
@@ -230,7 +232,7 @@ export class MenuScene extends Phaser.Scene {
               subtitle: !unlocked
                 ? 'со звания Дежурный'
                 : nightPlayed
-                  ? 'уже сыграна — завтра'
+                  ? t('subPlayed')
                   : undefined,
             },
           ),
@@ -238,7 +240,7 @@ export class MenuScene extends Phaser.Scene {
       {
         alpha: s.tools.lens || s.tokens < BALANCE.lensPrice ? 0.55 : 1,
         make: () =>
-          makeButton(this, width / 2 - 98, 928, `Лупа ${BALANCE.lensPrice}`, () => this.buy('lens'), {
+          makeButton(this, width / 2 - 98, 928, t('lensBuy', { p: BALANCE.lensPrice }), () => this.buy('lens'), {
             secondary: true,
             width: 186,
             height: 72,
@@ -252,7 +254,7 @@ export class MenuScene extends Phaser.Scene {
             this,
             width / 2 + 98,
             928,
-            `Детектор ${BALANCE.detectorPrice}`,
+            t('detectorBuy', { p: BALANCE.detectorPrice }),
             () => this.buy('detector'),
             { secondary: true, width: 186, height: 72, fontSize: 18 },
           ),
@@ -264,7 +266,7 @@ export class MenuScene extends Phaser.Scene {
       rows.push({
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2 - 98, 1004, 'Тест платформы', () => this.scene.start('PlatformTest'), {
+          makeButton(this, width / 2 - 98, 1004, t('platformTest'), () => this.scene.start('PlatformTest'), {
             secondary: true,
             width: 186,
             height: 72,
@@ -274,7 +276,7 @@ export class MenuScene extends Phaser.Scene {
       rows.push({
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2 + 98, 1004, 'Настройки', () => this.showSettings(), {
+          makeButton(this, width / 2 + 98, 1004, t('settings'), () => this.showSettings(), {
             secondary: true,
             width: 186,
             height: 72,
@@ -285,7 +287,7 @@ export class MenuScene extends Phaser.Scene {
       rows.push({
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 1004, 'Настройки', () => this.showSettings(), {
+          makeButton(this, width / 2, 1004, t('settings'), () => this.showSettings(), {
             secondary: true,
             width: 280,
             height: 72,
@@ -366,7 +368,7 @@ export class MenuScene extends Phaser.Scene {
         callback: () => void this.pollWaiting(api),
       });
     } catch {
-      this.hideWaiting('Не удалось начать дуэль');
+      this.hideWaiting(t('duelFailed'));
     }
   }
 
@@ -383,7 +385,7 @@ export class MenuScene extends Phaser.Scene {
           seed: poll.seed,
           durationMs: poll.durationMs ?? BALANCE.duelDurationMs,
           startAt: poll.startAt ?? Date.now() + BALANCE.duelCountdownMs,
-          opponentName: poll.opponentName ?? 'Соперник',
+          opponentName: poll.opponentName ?? t('opponentDefault'),
           botOpponent: api.botOpponent,
         });
         this.scene.start('Game');
@@ -404,7 +406,7 @@ export class MenuScene extends Phaser.Scene {
       seed: poll.seed,
       durationMs: poll.durationMs ?? BALANCE.duelDurationMs,
       startAt: poll.startAt ?? Date.now() + BALANCE.duelCountdownMs,
-      opponentName: poll.opponentName ?? 'Соперник',
+      opponentName: poll.opponentName ?? t('opponentDefault'),
       botOpponent: api.botOpponent,
     });
     this.scene.start('Game');
@@ -430,11 +432,11 @@ export class MenuScene extends Phaser.Scene {
     plate.strokeRoundedRect(-140, -196, 280, 44, 12);
 
     const title = this.add
-      .text(0, -174, 'Настройки', { fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold' })
+      .text(0, -174, t('settings'), { fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3);
 
-    const soundLabel = `Звук: ${s.soundOn ? 'вкл' : 'выкл'}`;
+    const soundLabel = t('soundLine', { on: s.soundOn ? t('soundOn') : t('soundOff') });
     const soundBtn = makeButton(this, 0, -100, soundLabel, () => {
       session().soundOn = !session().soundOn;
       sfx.setMuted(!session().soundOn);
@@ -444,7 +446,7 @@ export class MenuScene extends Phaser.Scene {
     }, { secondary: true, width: 380, fontSize: 24 });
     if (!session().soundOn) soundBtn.setAlpha(0.7);
 
-    const resetLabel = this.resetArmed ? 'Точно сбросить?' : 'Сбросить прогресс';
+    const resetLabel = this.resetArmed ? t('resetConfirm') : t('reset');
     const resetBtn = makeButton(this, 0, -5, resetLabel, () => this.resetFlow(), {
       secondary: true,
       width: 380,
@@ -453,11 +455,11 @@ export class MenuScene extends Phaser.Scene {
     });
 
     const version = this.add
-      .text(0, 82, 'Проходная · v0.1.0', { fontFamily: FONT, fontSize: '16px', color: INK_HEX })
+      .text(0, 82, t('versionLine', { v: '1.0.0' }), { fontFamily: FONT, fontSize: '16px', color: INK_HEX })
       .setOrigin(0.5)
       .setAlpha(0.6);
 
-    const back = makeButton(this, 0, 148, 'Назад', () => this.closeSettings(), {
+    const back = makeButton(this, 0, 148, t('back'), () => this.closeSettings(), {
       secondary: true,
       width: 300,
       fontSize: 24,
@@ -503,16 +505,16 @@ export class MenuScene extends Phaser.Scene {
     this.waitingUi = this.add.container(width / 2, height / 2, [dim, plate]).setDepth(20);
     this.waitingUi.add(
       this.add
-        .text(0, -60, 'Ожидание соперника…', { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
+        .text(0, -60, t('waitingOpponent'), { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
         .setOrigin(0.5),
     );
     this.waitingUi.add(
       this.add
-        .text(0, -20, 'Открой игру во второй вкладке', { fontFamily: FONT, fontSize: '15px', color: INK_HEX })
+        .text(0, -20, t('waitingHint'), { fontFamily: FONT, fontSize: '15px', color: INK_HEX })
         .setOrigin(0.5)
         .setAlpha(0.75),
     );
-    const cancel = makeButton(this, 0, 55, 'Отмена', () => this.cancelWaiting(), {
+    const cancel = makeButton(this, 0, 55, t('cancel'), () => this.cancelWaiting(), {
       secondary: true,
       width: 260,
       height: 64,
@@ -537,7 +539,7 @@ export class MenuScene extends Phaser.Scene {
 
   private hideWaiting(message: string): void {
     this.cleanupWaiting();
-    const t = this.add
+    const toast = this.add
       .text(this.scale.width / 2, this.scale.height / 2, message, {
         fontFamily: FONT,
         fontSize: '22px',
@@ -547,6 +549,6 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(20);
-    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 300, onComplete: () => t.destroy() });
+    this.tweens.add({ targets: toast, alpha: 0, delay: 1800, duration: 300, onComplete: () => toast.destroy() });
   }
 }

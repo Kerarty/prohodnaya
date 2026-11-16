@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import type { PlatformAPI, PlatformName, SaveData } from '../../platform';
+import { epochDays } from '../save';
 import {
   commitSession,
   flushSession,
@@ -102,7 +103,7 @@ describe('сессия (день 5)', () => {
 
   it('восстановление: сейв с незавершённой сменой читается', async () => {
     const fake = new FakePlatform();
-    const yesterday = Math.floor(Date.now() / 86_400_000) - 2;
+    const yesterday = epochDays() - 2; // та же база дней, что и sessionToday()
     const save = {
       version: 1,
       tokens: 120,
