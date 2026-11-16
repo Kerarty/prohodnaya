@@ -41,8 +41,8 @@ const BOARD_CY = 130;
 const GUEST_Y = 370;
 const GUEST_SCALE = 0.8;
 const CARD_Y = 690;
-const BAR_Y = 1010;
-const COUNTER_Y = 1050;
+const BAR_Y = 1016;
+const COUNTER_Y = 965; // одна линия с детектором — над полосой терпения, не на столешнице
 const DETECTOR_Y = 965; // над полосой терпения — иначе кнопка лежит на баре и столешнице
 const BTN_Y = 1150;
 const PATIENCE_MS = BALANCE.patienceMs;
@@ -518,7 +518,7 @@ export class GameScene extends Phaser.Scene {
 
   private toast(text: string): void {
     const t = this.add
-      .text(this.scale.width / 2, 950, text, {
+      .text(this.scale.width / 2, 918, text, {
         fontFamily: FONT,
         fontSize: '24px',
         color: INK_HEX,

@@ -244,7 +244,7 @@ export class MenuScene extends Phaser.Scene {
       {
         alpha: s.tools.lens || s.tokens < BALANCE.lensPrice ? 0.55 : 1,
         make: () =>
-          makeButton(this, width / 2 - 98, 928, t('lensBuy', { p: BALANCE.lensPrice }), () => this.buy('lens'), {
+          makeButton(this, width / 2 - 98, 924, t('lensBuy', { p: BALANCE.lensPrice }), () => this.buy('lens'), {
             secondary: true,
             width: 186,
             height: 72,
@@ -257,7 +257,7 @@ export class MenuScene extends Phaser.Scene {
           makeButton(
             this,
             width / 2 + 98,
-            928,
+            924,
             t('detectorBuy', { p: BALANCE.detectorPrice }),
             () => this.buy('detector'),
             { secondary: true, width: 186, height: 72, fontSize: 18 },
