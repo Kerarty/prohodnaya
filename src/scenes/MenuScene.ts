@@ -411,7 +411,7 @@ export class MenuScene extends Phaser.Scene {
     const s = session();
 
     // Затемнение — в ЛОКАЛЬНЫХ координатах контейнера (иначе смещается на его центр)
-    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setDepth(20);
+    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setInteractive().setDepth(20);
     const plate = this.add.graphics().setDepth(20);
     plate.fillStyle(THEME.PAPER, 1);
     plate.fillRoundedRect(-250, -210, 500, 420, 20);
@@ -487,7 +487,7 @@ export class MenuScene extends Phaser.Scene {
 
   private showWaiting(): void {
     const { width, height } = this.scale;
-    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setDepth(20);
+    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setInteractive().setDepth(20);
     const plate = this.add.graphics().setDepth(20);
     plate.fillStyle(THEME.PAPER, 1);
     plate.fillRoundedRect(-180, -110, 360, 220, 18);

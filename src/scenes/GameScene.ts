@@ -121,6 +121,8 @@ export class GameScene extends Phaser.Scene {
   private runEndAt = 0;
   private runStarted = false;
   private runEnded = false;
+  /** Результат забега/смены показан — «Меню» в углу больше не производит выплаты. */
+  private resultShown = false;
   private duelMatchId: string | null = null;
   private duelStartAt = 0;
   private duelOpponentName = 'Соперник';
@@ -143,6 +145,7 @@ export class GameScene extends Phaser.Scene {
     this.isNight = false;
     this.runEnded = false;
     this.runStarted = false;
+    this.resultShown = false;
     this.forgivenThisShift = false;
     this.rankIndexStart = sessionRank().index;
     this.signBulbs = [];
@@ -303,11 +306,8 @@ export class GameScene extends Phaser.Scene {
       fontSize: 16,
     });
 
-    // Блиц стартует сразу; дуэль — по startAt (отсчёт в onSceneUpdate)
-    if (this.runMode === 'blitz') {
-      this.runStarted = true;
-      this.runEndAt = this.time.now + this.runDuration;
-    } else if (this.runMode === 'duel') {
+    // Блиц стартует на первом update (Clock сцены bootится после create); дуэль — по startAt
+    if (this.runMode === 'duel') {
       this.countdownText = this.add
         .text(width / 2, height / 2, '', {
           fontFamily: FONT,
@@ -333,6 +333,13 @@ export class GameScene extends Phaser.Scene {
     if (this.runMode === 'shift' || this.runEnded) return;
 
     if (!this.runStarted) {
+      if (this.runMode === 'blitz') {
+        // В create Clock ещё не bootится и time.now = 0 — таймер там сгорал мгновенно
+        // у страниц, открытых дольше длительности забега. Выставляем здесь, где clock живой.
+        this.runStarted = true;
+        this.runEndAt = this.time.now + this.runDuration;
+        return;
+      }
       // дуэль ждёт startAt (общий для обоих игроков момент старта)
       const waitMs = this.duelStartAt - Date.now();
       if (waitMs > 0) {
@@ -359,7 +366,7 @@ export class GameScene extends Phaser.Scene {
 
   /** «Закончить игру»: выход в кабинет с честными последствиями для каждого режима. */
   private exitToMenu(): void {
-    if (this.runEnded) return; // на экранах результатов есть свои кнопки
+    if (this.runEnded || this.resultShown) return; // на экранах результатов есть свои кнопки
     const s = session();
     if (this.runMode === 'shift') {
       // прервать смену: выплата за верные сохраняется (ГДД разд. 5)
@@ -438,7 +445,7 @@ export class GameScene extends Phaser.Scene {
     try {
       return await getPlatform().showRewarded(onReward);
     } finally {
-      sfx.setMuted(false);
+      sfx.setMuted(!session().soundOn); // возвращаем настройку игрока, а не просто «включить»
       if (!wasBusy) this.setButtonsEnabled(true);
     }
   }
@@ -634,7 +641,8 @@ export class GameScene extends Phaser.Scene {
         });
         this.time.delayedCall(800, () => this.leaveGuest('ok'));
       } else {
-        // блиц/дуэль: чистый скор, без жетонов и XP
+        // блиц/дуэль: чистый скор, без жетонов и XP; «быстрые» дают +1 к скору
+        if (fast) this.fastCount += 1;
         if (this.guest) guestReact(this.guest, 'ok');
         this.time.delayedCall(300, () => {
           this.flash(THEME.SUCCESS);
@@ -875,9 +883,11 @@ export class GameScene extends Phaser.Scene {
     s.currentShift = null;
     void getPlatform().submitScore(BOARD_IDS.streak, s.bestStreak);
     void flushSession();
+    this.resultShown = true;
 
     const cy = height / 2;
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    // интерактивный dim: не пускает клики к кнопкам сцены за панелью результата
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, width / 2 - 290, cy - 200, 580, 400, 18);
     g.fillStyle(THEME.PAPER, 1);
@@ -935,6 +945,7 @@ export class GameScene extends Phaser.Scene {
 
     void getPlatform().submitScore(BOARD_IDS.streak, s.bestStreak);
     void flushSession();
+    this.resultShown = true;
 
     const rankAfter = rankFor(s.xp);
     const cy = height / 2;
@@ -944,7 +955,7 @@ export class GameScene extends Phaser.Scene {
         ? 'Ночная смена завершена'
         : `Смена ${this.shift} завершена`;
 
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, 60, cy - 360, 600, 720, 24);
     g.fillStyle(THEME.PAPER, 1);
@@ -1071,7 +1082,7 @@ export class GameScene extends Phaser.Scene {
 
     const { width, height } = this.scale;
     const cy = height / 2;
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, 60, cy - 300, 600, 600, 24);
     g.fillStyle(THEME.PAPER, 1);
@@ -1127,7 +1138,7 @@ export class GameScene extends Phaser.Scene {
   private finishDuel(score: number): void {
     const { width, height } = this.scale;
     const cy = height / 2;
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const waiting = this.add
       .text(width / 2, cy, 'Ожидание результата соперника…', {
         fontFamily: FONT,
@@ -1199,7 +1210,7 @@ export class GameScene extends Phaser.Scene {
 
     const title = finalWinner === 'me' ? 'ПОБЕДА' : finalWinner === 'opponent' ? 'ПОРАЖЕНИЕ' : 'НИЧЬЯ';
 
-    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5);
+    this.add.rectangle(width / 2, cy, width, height, 0x000000, 0.5).setInteractive();
     const g = this.add.graphics();
     drawHardShadow(g, 60, cy - 300, 600, 600, 24);
     g.fillStyle(THEME.PAPER, 1);

@@ -43,7 +43,8 @@ async function bootstrap(): Promise<void> {
     sfx.setMuted(true);
   });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) sfx.setMuted(false);
+    // при возврате во вкладку возвращаем НАСТРОЙКУ игрока, а не безусловно включаем звук
+    if (!document.hidden) sfx.setMuted(!session().soundOn);
   });
   window.addEventListener('pointerdown', () => sfx.unlock());
 
