@@ -36,7 +36,7 @@ import { makeLangButton } from '../ui/langPicker';
 import { createMatchAPI } from '../net/matchApi';
 import type { MatchAPI, MatchOutcome, MatchPoll } from '../net/matchApi';
 
-const BOARD_W = 560;
+const BOARD_W = 540; // зазоры от кнопок «Меню» и языка по краям
 const BOARD_CY = 130;
 const GUEST_Y = 370;
 const GUEST_SCALE = 0.8;
@@ -44,6 +44,7 @@ const CARD_Y = 690;
 const BAR_Y = 1016;
 const COUNTER_Y = 965; // одна линия с детектором — над полосой терпения, не на столешнице
 const TOOL_Y = 965; // основная линия инструментов — над полосой терпения
+const TOOL_X_OFF = 105; // отступ от правого края: левый край кнопок правее угла карты (510)
 const TOOL_LUPA_Y = 895; // Лупа над детектором, когда куплены оба
 const BTN_Y = 1150;
 const PATIENCE_MS = BALANCE.patienceMs;
@@ -439,14 +440,15 @@ export class GameScene extends Phaser.Scene {
 
     const lens = session().tools.lens;
     const detector = session().tools.detector && this.runMode === 'shift';
-    // Когда инструментов два — Лупа над Детектором; один — он стоит на основной линии
-    const lensY = lens && detector ? TOOL_LUPA_Y : TOOL_Y;
+    // Когда инструментов два (или в дуэли занята нижняя строка) — Лупа над Детектором
+    const opponentRow = this.runMode === 'duel';
+    const lensY = lens && (detector || opponentRow) ? TOOL_LUPA_Y : TOOL_Y;
     const detectorY = TOOL_Y;
 
     if (lens) {
-      this.lensBtn = makeButton(this, width - 125, lensY, t('lensName'), () => this.showLensHint(), {
+      this.lensBtn = makeButton(this, width - TOOL_X_OFF, lensY, t('lensName'), () => this.showLensHint(), {
         secondary: true,
-        width: 210,
+        width: 200,
         height: 56,
         fontSize: 18,
       });
@@ -459,9 +461,9 @@ export class GameScene extends Phaser.Scene {
           : ads && this.detectorAdUses < BALANCE.detectorAdCharges
             ? t('detectorAd')
             : t('detectorNone');
-      this.detectorBtn = makeButton(this, width - 125, detectorY, label, () => this.useDetector(), {
+      this.detectorBtn = makeButton(this, width - TOOL_X_OFF, detectorY, label, () => this.useDetector(), {
         secondary: true,
-        width: 210,
+        width: 200,
         height: 56,
         fontSize: 20,
       });
@@ -548,7 +550,7 @@ export class GameScene extends Phaser.Scene {
 
   private toast(text: string): void {
     const t = this.add
-      .text(this.scale.width / 2, 918, text, {
+      .text(this.scale.width / 2, 1052, text, {
         fontFamily: FONT,
         fontSize: '24px',
         color: INK_HEX,
@@ -1113,8 +1115,8 @@ export class GameScene extends Phaser.Scene {
         { color: THEME.PANEL_DARK, width: 380, fontSize: 26 },
       );
     }
-    const nextY = cy + (ads ? 215 : 110) - lift;
-    const menuY = cy + (ads ? 305 : 195) - lift;
+    const nextY = cy + (ads ? 210 : 200) - lift;
+    const menuY = cy + (ads ? 305 : 295) - lift;
     makeButton(this, width / 2, nextY, t('nextShift'), () => this.scene.restart(), {
       color: THEME.ACCENT,
       width: 340,
