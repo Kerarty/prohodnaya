@@ -425,10 +425,11 @@ export class GameScene extends Phaser.Scene {
 
   private createDetectorButton(width: number): void {
     this.detectorBtn?.destroy();
+    const ads = getPlatform().adsSupported;
     const label =
       this.detectorCharges > 0
         ? `Детектор (${this.detectorCharges})`
-        : this.detectorAdUses < BALANCE.detectorAdCharges
+        : ads && this.detectorAdUses < BALANCE.detectorAdCharges
           ? 'Детектор +AD'
           : 'Детектор —';
     this.detectorBtn = makeButton(this, width - 125, DETECTOR_Y, label, () => this.useDetector(), {
@@ -480,8 +481,11 @@ export class GameScene extends Phaser.Scene {
   private useDetector(): void {
     if (this.busy) return;
     if (this.detectorCharges <= 0) {
-      if (this.detectorAdUses >= BALANCE.detectorAdCharges) {
+      const ads = getPlatform().adsSupported;
+      if (!ads || this.detectorAdUses >= BALANCE.detectorAdCharges) {
         this.toast('Заряды детектора на смену исчерпаны');
+        // Без рекламы кнопка «пустышка» не нужна
+        if (!ads) this.detectorBtn?.destroy();
         return;
       }
       // Rewarded: доп. заряд (ГДД разд. 7) — награда только за onRewarded
@@ -783,8 +787,11 @@ export class GameScene extends Phaser.Scene {
     const title = counted ? 'Ошибка' : 'Обучение';
     const limitReached =
       counted && this.errors >= MAX_ERRORS && !this.isNight && this.runMode === 'shift';
+    // Прощение за рекламу — только на платформах с рекламой (ГДД разд. 7)
+    const forgivePossible =
+      limitReached && !this.forgivenThisShift && getPlatform().adsSupported;
     // Панель выше, когда в ней два ряда кнопок (прощение + завершение) — кнопки не вылезают за край
-    const half = limitReached && !this.forgivenThisShift ? 200 : 170;
+    const half = forgivePossible ? 200 : 170;
     const panel = this.add.container(width / 2, height / 2);
     const g = this.add.graphics();
     drawHardShadow(g, -290, -half, 580, half * 2, 18);
@@ -815,7 +822,7 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5),
     );
 
-    if (limitReached && !this.forgivenThisShift) {
+    if (forgivePossible) {
       // Прощение ошибки за rewarded: ошибка аннулируется, смена продолжается (ГДД разд. 7)
       panel.add(
         makeButton(this, 0, 50, 'Продолжить за рекламу', () => this.forgive(info, dim, panel), {
@@ -1057,21 +1064,26 @@ export class GameScene extends Phaser.Scene {
     // Без строк скор/звание середина панели остаётся пустой — поднимаю блок кнопок
     const extras = (this.isDaily ? 1 : 0) + (rankAfter.index > this.rankIndexStart ? 1 : 0);
     const lift = extras === 0 ? 100 : extras === 1 ? 55 : 0;
+    const ads = getPlatform().adsSupported;
 
-    // ×2 жетоны за rewarded (ГДД разд. 7) — один раз, всегда доступно
-    this.doubleBtn = makeButton(
-      this,
-      width / 2,
-      cy + 110 - lift,
-      '×2 жетоны за рекламу',
-      () => this.applyDoubleReward(),
-      { color: THEME.PANEL_DARK, width: 380, fontSize: 26 },
-    );
-    makeButton(this, width / 2, cy + 215 - lift, 'Следующая смена', () => this.scene.restart(), {
+    // ×2 жетоны за rewarded (ГДД разд. 7) — один раз, всегда доступно; на itch рекламы нет
+    if (ads) {
+      this.doubleBtn = makeButton(
+        this,
+        width / 2,
+        cy + 110 - lift,
+        '×2 жетоны за рекламу',
+        () => this.applyDoubleReward(),
+        { color: THEME.PANEL_DARK, width: 380, fontSize: 26 },
+      );
+    }
+    const nextY = cy + (ads ? 215 : 110) - lift;
+    const menuY = cy + (ads ? 305 : 195) - lift;
+    makeButton(this, width / 2, nextY, 'Следующая смена', () => this.scene.restart(), {
       color: THEME.ACCENT,
       width: 340,
     });
-    makeButton(this, width / 2, cy + 305 - lift, 'В меню', () => this.exitToMenuAfterResults(), {
+    makeButton(this, width / 2, menuY, 'В меню', () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });
@@ -1079,7 +1091,7 @@ export class GameScene extends Phaser.Scene {
 
   /** ×2 жетонов за rewarded: начисляем вторую половину (ГДД разд. 7). */
   private applyDoubleReward(): void {
-    if (this.doubled) return;
+    if (this.doubled || !getPlatform().adsSupported) return;
     void this.showRewardedSafe(() => {
       this.doubled = true;
       session().tokens += this.finishTokenTotal;

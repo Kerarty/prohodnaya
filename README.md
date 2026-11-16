@@ -42,6 +42,7 @@ npm run dev      # http://localhost:5173 — локально играется �
 npm run test     # Vitest: генерация, инварианты, экономика, сейв
 npm run lint
 npm run dist     # сборка + zip для черновика в Консоли Яндекса
+npm run dist:itch # сборка + zip для itch.io (без рекламных точек)
 ```
 
 ## Как устроено

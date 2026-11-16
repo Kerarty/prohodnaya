@@ -1,14 +1,17 @@
 {
   "name": "prohodnaya",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
-  "description": "Проходная — казуальная игра для Яндекс Игр (Phaser 3 + TypeScript + Vite)",
+  "description": "Проходная — казуальная игра для Яндекс Игр и itch.io (Phaser 3 + TypeScript + Vite)",
   "scripts": {
     "dev": "vite",
+    "dev:itch": "vite --mode itch",
     "build": "tsc --noEmit && vite build",
+    "build:itch": "tsc --noEmit && vite build --mode itch",
     "preview": "vite preview",
     "dist": "npm run build && powershell -NoProfile -Command \"Compress-Archive -Path 'dist/*' -DestinationPath 'prohodnaya-yandex.zip' -Force\"",
+    "dist:itch": "npm run build:itch && powershell -NoProfile -Command \"Compress-Archive -Path 'dist/*' -DestinationPath 'prohodnaya-itch.zip' -Force\"",
     "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --write src index.html"

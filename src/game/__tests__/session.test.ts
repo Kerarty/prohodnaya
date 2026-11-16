@@ -12,6 +12,7 @@ import {
 
 class FakePlatform implements PlatformAPI {
   readonly name: PlatformName = 'Local';
+  readonly adsSupported = true;
   saves: SaveData[] = [];
   stored: SaveData | null = null;
   gameplayStarted = 0;

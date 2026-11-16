@@ -5,7 +5,7 @@ export interface SaveData {
 }
 
 /** Какая реализация платформы активна — для отладки и тестов. */
-export type PlatformName = 'Yandex' | 'Local';
+export type PlatformName = 'Yandex' | 'Local' | 'Itch';
 
 /**
  * Единый контракт платформы. Игра не знает, где запущена:
@@ -14,6 +14,9 @@ export type PlatformName = 'Yandex' | 'Local';
  */
 export interface PlatformAPI {
   readonly name: PlatformName;
+
+  /** Rewarded-точки показываются только там, где есть реклама (на itch.io — нет). */
+  readonly adsSupported: boolean;
 
   /** Инициализация SDK. Вызывается один раз до старта игры. */
   init(): Promise<void>;

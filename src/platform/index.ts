@@ -1,4 +1,5 @@
 import type { PlatformAPI } from './types';
+import { ItchPlatform } from './itch';
 import { LocalPlatform } from './local';
 import { YandexPlatform } from './yandex';
 
@@ -8,7 +9,8 @@ let instance: PlatformAPI | null = null;
 
 /**
  * SDK на хостинге Яндекса подключается тегом в index.html и определяет window.YaGames.
- * Локально его нет — играется через заглушку LocalPlatform.
+ * itch-сборка (`npm run build:itch`, vite mode=itch) получает ItchPlatform без рекламы.
+ * Локально SDK отсутствует — играется через заглушку LocalPlatform.
  */
 export async function initPlatform(): Promise<PlatformAPI> {
   if (instance) return instance;
@@ -16,7 +18,9 @@ export async function initPlatform(): Promise<PlatformAPI> {
   instance =
     typeof window !== 'undefined' && window.YaGames !== undefined
       ? new YandexPlatform()
-      : new LocalPlatform();
+      : import.meta.env.MODE === 'itch'
+        ? new ItchPlatform()
+        : new LocalPlatform();
   await instance.init();
   console.info(`[platform] активна: ${instance.name}`);
   return instance;

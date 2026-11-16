@@ -10,6 +10,8 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  */
 export class LocalPlatform implements PlatformAPI {
   readonly name: PlatformName = 'Local';
+  /** Мок рекламы для дев-проверки rewarded-точек. */
+  readonly adsSupported: boolean = true;
 
   init(): Promise<void> {
     return Promise.resolve();

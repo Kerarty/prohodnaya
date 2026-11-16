@@ -62,6 +62,7 @@ function readFallback(): SaveData | null {
 /** Реальная платформа Яндекс Игр. Работает только на хостинге платформы (sdk.js в index.html). */
 export class YandexPlatform implements PlatformAPI {
   readonly name: PlatformName = 'Yandex';
+  readonly adsSupported: boolean = true;
 
   private ysdk: YandexSdk | null = null;
   private player: YandexPlayer | null = null;
