@@ -86,12 +86,13 @@ export class MenuScene extends Phaser.Scene {
     if (rank.nextXp !== null) {
       const prevXp = BALANCE.ranks[rank.index].xp;
       const progress = Phaser.Math.Clamp((s.xp - prevXp) / (rank.nextXp - prevXp), 0, 1);
-      const fillW = Math.max(10, (barW - 10) * progress);
+      // минимальная заливка — заметная капсула, а не точка-кружок
+      const fillW = Math.max(16, (barW - 10) * progress);
       if (progress > 0) {
         bar.fillStyle(THEME.ACCENT, 1);
         bar.fillRoundedRect(barX + 5, barY + 5, fillW, 10, 5);
         bar.lineStyle(4, 0xffffff, 0.25);
-        for (let sx = barX; sx < barX + fillW; sx += 14) {
+        for (let sx = barX + 5; sx < barX + 5 + fillW; sx += 14) {
           bar.lineBetween(sx, barY + 18, Math.min(sx + 12, barX + 5 + fillW), barY + 2);
         }
       }

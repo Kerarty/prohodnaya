@@ -146,6 +146,7 @@ export function drawCharacter(
   const c = scene.add.container(cx, cy, [boots, g, cheeks, mouth, eyesG]);
   c.setScale(scale);
   c.setData('headCy', headCy);
+  c.setData('headForm', attrs.headForm);
 
   // Моргание: случайные интервалы 2.5–5 с, прикрытие на 90 мс
   const blink = (): void => {
@@ -221,20 +222,25 @@ export function highlightField(container: Phaser.GameObjects.Container, field: D
   if (prev) prev.destroy();
   if (field === 'expiry' || field === 'signature') return;
 
+  // Центр головы зависит от формы (у треугольника он выше) — кольцо должно сидеть точно
+  const headCy = (container.getData('headCy') as number | undefined) ?? -70;
+  const headForm = container.getData('headForm') as HeadForm | undefined;
+  const top = headForm ? HEAD_TOP[headForm] : -125;
+
   const ring = container.scene.add.graphics().setName('fieldRing');
   ring.lineStyle(5, THEME.GOLD, 1);
   switch (field) {
     case 'head':
-      ring.strokeCircle(0, -70, 66);
+      ring.strokeCircle(0, headCy, 66);
       break;
     case 'body':
       ring.strokeRect(-72, 0, 144, 118);
       break;
     case 'eyes':
-      ring.strokeCircle(0, -70, 44);
+      ring.strokeCircle(0, headCy, 44);
       break;
     case 'accessory':
-      ring.strokeRect(-52, -150, 104, 42);
+      ring.strokeRect(-58, top - 52, 116, 62);
       break;
   }
   container.add(ring);

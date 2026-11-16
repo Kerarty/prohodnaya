@@ -55,7 +55,7 @@ export function drawRuleBoard(
     // подложка ряда — структурирует список
     const rowBg = scene.add.graphics();
     rowBg.fillStyle(THEME.NICHE, 0.55);
-    rowBg.fillRoundedRect(-width / 2 + 14, y - 23, width - 28, 46, 12);
+    rowBg.fillRoundedRect(-width / 2 + 14, y - 25, width - 28, 50, 12);
     board.add(rowBg);
     board.add(
       scene.add
@@ -63,7 +63,8 @@ export function drawRuleBoard(
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
-          wordWrap: { width: 330 },
+          // до пиктограммы места ~440px: узкая обёртка давала лишние переносы
+          wordWrap: { width: 440 },
         })
         .setOrigin(0, 0.5),
     );
