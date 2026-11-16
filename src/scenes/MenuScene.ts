@@ -428,7 +428,7 @@ export class MenuScene extends Phaser.Scene {
       .setStroke(INK_HEX, 3);
 
     const soundLabel = `Звук: ${s.soundOn ? 'вкл' : 'выкл'}`;
-    const soundBtn = makeButton(this, 0, -90, soundLabel, () => {
+    const soundBtn = makeButton(this, 0, -100, soundLabel, () => {
       session().soundOn = !session().soundOn;
       sfx.setMuted(!session().soundOn);
       void flushSession();
@@ -438,7 +438,7 @@ export class MenuScene extends Phaser.Scene {
     if (!session().soundOn) soundBtn.setAlpha(0.7);
 
     const resetLabel = this.resetArmed ? 'Точно сбросить?' : 'Сбросить прогресс';
-    const resetBtn = makeButton(this, 0, 0, resetLabel, () => this.resetFlow(), {
+    const resetBtn = makeButton(this, 0, -5, resetLabel, () => this.resetFlow(), {
       secondary: true,
       width: 380,
       fontSize: 24,
@@ -446,7 +446,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     const version = this.add
-      .text(0, 90, 'Проходная · v0.1.0', { fontFamily: FONT, fontSize: '16px', color: INK_HEX })
+      .text(0, 82, 'Проходная · v0.1.0', { fontFamily: FONT, fontSize: '16px', color: INK_HEX })
       .setOrigin(0.5)
       .setAlpha(0.6);
 

@@ -27,7 +27,8 @@ export function makeButton(
   opts: ButtonOptions = {},
 ): Phaser.GameObjects.Container {
   const { width = 340, height = 88, color = THEME.ACCENT, fontSize = 32, secondary = false, subtitle } = opts;
-  const fill = secondary ? (color ?? THEME.PAPER) : color;
+  // secondary — белая, если цвет не задан явно (напр., красная «Точно сбросить?»)
+  const fill = secondary && opts.color === undefined ? THEME.PAPER : color;
 
   const container = scene.add.container(cx, cy);
 
