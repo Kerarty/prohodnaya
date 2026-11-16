@@ -26,12 +26,13 @@ const LOCALE_MAP: Record<string, LocaleCode> = {
   it: 'it',
 };
 
-/** Выбор локали по языку платформы ('ru-RU', 'en', 'pt-BR', ...) с ?lang= оверрайдом для тестов. */
+/**
+ * Применить локаль. Приоритет решает вызывающий (bootstrap): выбор игрока из сейва
+ * → ?lang=xx в адресе (проверка локалей) → язык платформы.
+ */
 export function initLocale(lang: string): void {
-  const url = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('lang') : null;
-  const candidate = url ?? lang;
-  const base = candidate.toLowerCase().split(/[-_]/)[0];
-  current = LOCALE_MAP[base] ?? LOCALE_MAP[candidate] ?? FALLBACK;
+  const base = lang.toLowerCase().split(/[-_]/)[0];
+  current = LOCALE_MAP[base] ?? LOCALE_MAP[lang] ?? FALLBACK;
   console.info(`[i18n] локаль: ${current}`);
 }
 

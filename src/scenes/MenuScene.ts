@@ -12,6 +12,7 @@ import { queueLaunch } from './GameScene';
 import { makeButton } from '../ui/button';
 import { t } from '../i18n';
 import { rankTitle } from '../i18n/labels';
+import { makeLangButton } from '../ui/langPicker';
 
 /**
  * Кабинет «Мульт-поп» (ГДД разд. 5–6 + план мультиплеера): вывеска-логотип,
@@ -48,6 +49,9 @@ export class MenuScene extends Phaser.Scene {
 
     drawBooth(this, width, 'menu');
 
+    // Смена языка — правый верхний угол (рядом с кнопкой «Меню» в смене)
+    makeLangButton(this, width - 48, 44);
+
     // Логотип-вывеска с лампочками (спека §4.6)
     const logo = this.add.graphics();
     logo.fillStyle(THEME.INK, THEME.SHADOW_A);
@@ -57,7 +61,7 @@ export class MenuScene extends Phaser.Scene {
     logo.lineStyle(5, THEME.INK, 1);
     logo.strokeRoundedRect(120, 95, 480, 110, 20);
     this.add
-      .text(width / 2, 150, 'ПРОХОДНАЯ', {
+      .text(width / 2, 150, t('appName'), {
         fontFamily: FONT,
         fontSize: '56px',
         color: '#ffffff',

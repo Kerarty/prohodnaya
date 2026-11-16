@@ -1,6 +1,8 @@
 import type { TranslationKey } from '../index';
 
 export const it: Record<TranslationKey, string> = {
+  appName: 'IL CONTROLLO',
+
   rank_0: 'Stagista',
   rank_1: 'Guardiano',
   rank_2: 'Guardiano capo',
@@ -28,7 +30,7 @@ export const it: Record<TranslationKey, string> = {
   soundOff: 'no',
   reset: 'Azzera i progressi',
   resetConfirm: 'Azzerare davvero?',
-  versionLine: 'Prohodnaya · v{v}',
+  versionLine: 'Il Controllo · v{v}',
   back: 'Indietro',
   waitingOpponent: 'In attesa di un avversario…',
   waitingHint: 'Apri il gioco in un’altra scheda',

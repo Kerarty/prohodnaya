@@ -1,5 +1,8 @@
 /** Канонический словарь: набор ключей и fallback для всех локалей. */
 export const en = {
+  // — бренд —
+  appName: 'CHECKPOINT',
+
   // — звания —
   rank_0: 'Trainee',
   rank_1: 'Desk Officer',
@@ -29,7 +32,7 @@ export const en = {
   soundOff: 'off',
   reset: 'Reset progress',
   resetConfirm: 'Really reset?',
-  versionLine: 'Prohodnaya · v{v}',
+  versionLine: 'Checkpoint · v{v}',
   back: 'Back',
   waitingOpponent: 'Waiting for an opponent…',
   waitingHint: 'Open the game in a second tab',

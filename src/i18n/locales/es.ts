@@ -1,6 +1,8 @@
 import type { TranslationKey } from '../index';
 
 export const es: Record<TranslationKey, string> = {
+  appName: 'EL CONTROL',
+
   rank_0: 'Aprendiz',
   rank_1: 'Guardia',
   rank_2: 'Guardia sénior',
@@ -28,7 +30,7 @@ export const es: Record<TranslationKey, string> = {
   soundOff: 'no',
   reset: 'Reiniciar progreso',
   resetConfirm: '¿Seguro que quieres reiniciar?',
-  versionLine: 'Prohodnaya · v{v}',
+  versionLine: 'El Control · v{v}',
   back: 'Volver',
   waitingOpponent: 'Esperando a un rival…',
   waitingHint: 'Abre el juego en otra pestaña',

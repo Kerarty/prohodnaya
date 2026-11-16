@@ -32,6 +32,7 @@ import { drawHardShadow, FONT, INK_HEX, THEME } from '../render/theme';
 import { t } from '../i18n';
 import { sfx } from '../systems/sfx';
 import { makeButton } from '../ui/button';
+import { makeLangButton } from '../ui/langPicker';
 import { createMatchAPI } from '../net/matchApi';
 import type { MatchAPI, MatchOutcome, MatchPoll } from '../net/matchApi';
 
@@ -299,6 +300,9 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (s.tools.detector && this.runMode === 'shift') this.createDetectorButton(width);
+
+    // Смена языка — в обычной смене (в блице/дуэли рестарт сбросил бы забег)
+    if (this.runMode === 'shift') makeLangButton(this, width - 48, 44);
 
     // выход в кабинет из любого режима (спека: «закончить игру»)
     makeButton(this, 44, 40, t('menu'), () => this.exitToMenu(), {

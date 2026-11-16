@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT, INK_HEX, THEME } from './theme';
+import { t } from '../i18n';
 
 export interface BoothView {
   /** Лампочки вывески — для волн (juice). */
@@ -90,7 +91,7 @@ export function drawBooth(scene: Phaser.Scene, width: number, mode: 'game' | 'me
     g.lineStyle(4, THEME.INK, 1);
     g.strokeRoundedRect(width / 2 - 130, 1208, 260, 64, 14);
     scene.add
-      .text(width / 2, 1240, 'ПРОХОДНАЯ', {
+      .text(width / 2, 1240, t('appName'), {
         fontFamily: FONT,
         fontSize: '28px',
         color: '#ffffff',

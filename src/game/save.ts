@@ -59,6 +59,8 @@ export interface SaveDataV1 {
   soundOn: boolean;
   /** Рекламные счётчики (interstitial-политика). */
   ad: AdState;
+  /** Выбранная локаль ('ru'|'en'|...); null — язык платформы. */
+  lang: string | null;
 }
 
 /** Локальные epoch-дни: границы суток по таймзоне игрока — согласованы с dateKey()
@@ -97,6 +99,7 @@ export function defaultSave(todayBase: number): SaveDataV1 {
     mp: { blitzBest: 0, blitzRuns: 0, duelWins: 0, duelLosses: 0, duelDraws: 0, duelRating: 1000 },
     soundOn: true,
     ad: { lastAdAt: 0, shiftsSince: 0 },
+    lang: null,
   };
 }
 
@@ -148,6 +151,7 @@ export function normalizeSave(raw: unknown, todayBase: number): SaveDataV1 {
     mp: readMp(r.mp),
     soundOn: bool(r.soundOn, true),
     ad: readAd(r.ad),
+    lang: typeof r.lang === 'string' ? r.lang : null,
   };
 }
 

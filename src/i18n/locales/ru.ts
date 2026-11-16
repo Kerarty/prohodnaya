@@ -2,6 +2,8 @@ import type { TranslationKey } from '../index';
 
 /** Русский: исходные формулировки (источник игры). */
 export const ru: Record<TranslationKey, string> = {
+  appName: 'ПРОХОДНАЯ',
+
   rank_0: 'Стажёр',
   rank_1: 'Дежурный',
   rank_2: 'Старший дежурный',

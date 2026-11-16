@@ -38,10 +38,6 @@ window.addEventListener('unhandledrejection', (e) => {
 async function bootstrap(): Promise<void> {
   const platform = await initPlatform();
 
-  // Локализация: язык платформы (требование Яндекса 2.14 — автоопределение),
-  // ?lang=xx в адресе для ручной проверки
-  initLocale(platform.getLang());
-
   // Пауза извне (реклама, сворачивание вкладки): глушим звук (п. 4.7 правил Яндекса).
   platform.onStateChanged(() => {
     console.info('[game] пауза от платформы');
@@ -55,6 +51,11 @@ async function bootstrap(): Promise<void> {
 
   initSession(platform);
   await loadSession();
+
+  // Локализация: выбор игрока из сейва → ?lang=xx в адресе (проверка локалей) → язык
+  // платформы (требование Яндекса 2.14 — автоопределение)
+  const urlLang = new URLSearchParams(location.search).get('lang');
+  initLocale(session().lang ?? urlLang ?? platform.getLang());
   sfx.setMuted(!session().soundOn); // настройка звука из сейва
 
   // Последняя попытка сохранить прогресс при уходе со страницы (не гарантирована)
