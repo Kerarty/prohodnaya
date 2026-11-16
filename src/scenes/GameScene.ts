@@ -23,6 +23,7 @@ import {
   startBreathing,
 } from '../render/characterRenderer';
 import { drawBooth } from '../render/booth';
+import type { BoothView } from '../render/booth';
 import { bulbWave, confetti, spawnThought } from '../render/juice';
 import { PassCard } from '../render/passCard';
 import { drawRuleBoard } from '../render/ruleBoard';
@@ -39,6 +40,7 @@ const GUEST_SCALE = 0.8;
 const CARD_Y = 690;
 const BAR_Y = 1010;
 const COUNTER_Y = 1050;
+const DETECTOR_Y = 965; // над полосой терпения — иначе кнопка лежит на баре и столешнице
 const BTN_Y = 1150;
 const PATIENCE_MS = BALANCE.patienceMs;
 const MAX_ERRORS = BALANCE.maxErrors;
@@ -109,7 +111,9 @@ export class GameScene extends Phaser.Scene {
   private rejectBtn: Phaser.GameObjects.Container | null = null;
   private counter: Phaser.GameObjects.Text | null = null;
   private patienceBar: Phaser.GameObjects.Rectangle | null = null;
+  private barFrame: Phaser.GameObjects.Graphics | null = null;
   private patienceEvent: Phaser.Time.TimerEvent | null = null;
+  private boothView: BoothView | null = null;
   private signBulbs: Phaser.GameObjects.Arc[] = [];
   private boardView: { board: Phaser.GameObjects.Container; pulse(): void } | null = null;
   // Блиц/дуэль: глобальный таймер забега вместо терпения на заявку
@@ -143,6 +147,26 @@ export class GameScene extends Phaser.Scene {
     this.rankIndexStart = sessionRank().index;
     this.signBulbs = [];
     this.matchApi = null;
+    // Полный сброс прогресса забега: scene.restart() не пересоздаёт экземпляр сцены,
+    // поля класса переживают рестарт (после «Следующая смена» открывалась последняя заявка)
+    this.index = 0;
+    this.correct = 0;
+    this.errors = 0;
+    this.earnedTokens = 0;
+    this.earnedXp = 0;
+    this.fastCount = 0;
+    this.detectorCharges = 0;
+    this.detectorAdUses = 0;
+    this.doubled = false;
+    this.finishTokenTotal = 0;
+    this.finishXpTotal = 0;
+    this.duelReported = false;
+    this.duelOutcome = null;
+    this.opponentScore = 0;
+    this.lastOpponentPoll = 0;
+    this.rewardText = null;
+    this.doubleBtn = null;
+    this.detectorBtn = null;
 
     const launch: SceneLaunchData = pendingLaunch ?? data ?? {};
     pendingLaunch = null;
@@ -217,7 +241,7 @@ export class GameScene extends Phaser.Scene {
       void flushSession();
     }
 
-    drawBooth(this, width, 'game');
+    this.boothView = drawBooth(this, width, 'game');
 
     this.boardView = drawRuleBoard(this, this.rules, width / 2, BOARD_CY, BOARD_W);
     this.boardView.pulse();
@@ -225,9 +249,9 @@ export class GameScene extends Phaser.Scene {
     this.patienceBar = this.add
       .rectangle(40, BAR_Y, width - 80, 8, THEME.SUCCESS)
       .setOrigin(0, 0.5);
-    const barFrame = this.add.graphics();
-    barFrame.lineStyle(3, THEME.INK, 0.6);
-    barFrame.strokeRoundedRect(34, BAR_Y - 9, width - 68, 18, 9);
+    this.barFrame = this.add.graphics();
+    this.barFrame.lineStyle(3, THEME.INK, 0.6);
+    this.barFrame.strokeRoundedRect(34, BAR_Y - 9, width - 68, 18, 9);
 
     this.counter = this.add
       .text(40, COUNTER_Y, '', {
@@ -367,8 +391,10 @@ export class GameScene extends Phaser.Scene {
   private updateCounter(remainingMs?: number): void {
     if (this.runMode === 'shift') {
       const label = this.isDaily ? 'Дневная смена' : this.isNight ? 'Ночная смена' : `Смена ${this.shift}`;
+      // Ошибки из брошенного сейва могут быть выше лимита — в интерфейсе не показываем «4/3»
+      const shownErrors = Math.min(this.errors, MAX_ERRORS);
       this.counter?.setText(
-        `${label} · Заявка ${this.index + 1}/${this.queue.length} · Ошибки: ${this.errors}/${MAX_ERRORS}`,
+        `${label} · Заявка ${this.index + 1}/${this.queue.length} · Ошибки: ${shownErrors}/${MAX_ERRORS}`,
       );
       return;
     }
@@ -396,7 +422,7 @@ export class GameScene extends Phaser.Scene {
         : this.detectorAdUses < BALANCE.detectorAdCharges
           ? 'Детектор +AD'
           : 'Детектор —';
-    this.detectorBtn = makeButton(this, width - 125, COUNTER_Y, label, () => this.useDetector(), {
+    this.detectorBtn = makeButton(this, width - 125, DETECTOR_Y, label, () => this.useDetector(), {
       secondary: true,
       width: 210,
       height: 64,
@@ -498,6 +524,12 @@ export class GameScene extends Phaser.Scene {
 
     // Bounce-вход слева: слайд + overshoot масштаба (спека §4.3 №8)
     this.guest = drawCharacter(this, app.guest, -80, GUEST_Y, GUEST_SCALE);
+    // Тень в нише появляется вместе с гостем и уходит с ним — не висит в пустой нише
+    const guestShadow = this.boothView?.guestShadow;
+    if (guestShadow) {
+      guestShadow.setAlpha(0);
+      this.tweens.add({ targets: guestShadow, alpha: 1, duration: 250 });
+    }
     this.card = new PassCard(this, app.doc, width / 2, CARD_Y, {
       interactiveFields: session().tools.lens,
       onFieldTap: (field: DocFieldId) => {
@@ -538,10 +570,13 @@ export class GameScene extends Phaser.Scene {
     this.stopPatience();
     if (!this.patienceBar) return;
     if (this.index >= this.queue.length - 1) {
+      // Последняя заявка: терпения нет — прячу полосу вместе с рамкой
       this.patienceBar.setVisible(false);
+      this.barFrame?.setVisible(false);
       return;
     }
     this.patienceBar.setVisible(true);
+    this.barFrame?.setVisible(true);
     this.patienceBar.scaleX = 1;
     this.patienceBar.fillColor = THEME.PANEL_DARK;
     this.tweens.add({ targets: this.patienceBar, scaleX: 0, duration: PATIENCE_MS, ease: 'Linear' });
@@ -649,6 +684,10 @@ export class GameScene extends Phaser.Scene {
 
   private leaveGuest(kind: 'ok' | 'reject' | 'timeout' = 'ok'): void {
     const { width } = this.scale;
+    const guestShadow = this.boothView?.guestShadow;
+    if (guestShadow) {
+      this.tweens.add({ targets: guestShadow, alpha: 0, duration: 250 });
+    }
     if (this.guest) {
       if (kind === 'reject') {
         // «Сдувание» уже сыграло — держим грусть, затем уводим с наклоном (спека §4.3 №9)
@@ -704,21 +743,25 @@ export class GameScene extends Phaser.Scene {
       app.reason === 'forgery' ? describeForgery(app) : describeViolation(app, this.rules);
 
     const title = counted ? 'Ошибка' : 'Обучение';
+    const limitReached =
+      counted && this.errors >= MAX_ERRORS && !this.isNight && this.runMode === 'shift';
+    // Панель выше, когда в ней два ряда кнопок (прощение + завершение) — кнопки не вылезают за край
+    const half = limitReached && !this.forgivenThisShift ? 200 : 170;
     const panel = this.add.container(width / 2, height / 2);
     const g = this.add.graphics();
-    drawHardShadow(g, -290, -170, 580, 340, 18);
+    drawHardShadow(g, -290, -half, 580, half * 2, 18);
     g.fillStyle(THEME.PAPER, 1);
-    g.fillRoundedRect(-290, -170, 580, 340, 18);
+    g.fillRoundedRect(-290, -half, 580, half * 2, 18);
     g.lineStyle(5, THEME.INK, 1);
-    g.strokeRoundedRect(-290, -170, 580, 340, 18);
+    g.strokeRoundedRect(-290, -half, 580, half * 2, 18);
     g.fillStyle(THEME.ACCENT, 1);
-    g.fillRoundedRect(-130, -158, 260, 46, 12);
+    g.fillRoundedRect(-130, -half + 12, 260, 46, 12);
     g.lineStyle(3, THEME.INK, 1);
-    g.strokeRoundedRect(-130, -158, 260, 46, 12);
+    g.strokeRoundedRect(-130, -half + 12, 260, 46, 12);
     panel.add(g);
     panel.add(
       this.add
-        .text(0, -135, title, { fontFamily: FONT, fontSize: '30px', color: '#ffffff', fontStyle: 'bold' })
+        .text(0, -half + 35, title, { fontFamily: FONT, fontSize: '30px', color: '#ffffff', fontStyle: 'bold' })
         .setOrigin(0.5)
         .setStroke(INK_HEX, 3),
     );
@@ -734,12 +777,10 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5),
     );
 
-    const limitReached =
-      counted && this.errors >= MAX_ERRORS && !this.isNight && this.runMode === 'shift';
     if (limitReached && !this.forgivenThisShift) {
       // Прощение ошибки за rewarded: ошибка аннулируется, смена продолжается (ГДД разд. 7)
       panel.add(
-        makeButton(this, 0, 60, 'Продолжить за рекламу', () => this.forgive(info, dim, panel), {
+        makeButton(this, 0, 50, 'Продолжить за рекламу', () => this.forgive(info, dim, panel), {
           color: THEME.SUCCESS,
           width: 380,
           fontSize: 26,
@@ -749,7 +790,7 @@ export class GameScene extends Phaser.Scene {
         makeButton(
           this,
           0,
-          160,
+          148,
           'Завершить смену',
           () => {
             dim.destroy();
@@ -857,7 +898,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3);
     this.add
-      .text(width / 2, cy - 80, `Допущено ошибок: ${this.errors} из ${MAX_ERRORS}`, {
+      .text(width / 2, cy - 80, `Допущено ошибок: ${Math.min(this.errors, MAX_ERRORS)} из ${MAX_ERRORS}`, {
         fontFamily: FONT,
         fontSize: '26px',
         color: INK_HEX,
@@ -870,7 +911,7 @@ export class GameScene extends Phaser.Scene {
         color: INK_HEX,
       })
       .setOrigin(0.5);
-    makeButton(this, width / 2, cy + 60, 'Новая смена', () => this.scene.restart(), {
+    makeButton(this, width / 2, cy + 50, 'Новая смена', () => this.scene.restart(), {
       color: THEME.SUCCESS,
       width: 320,
     });
@@ -926,11 +967,16 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3);
     this.add
-      .text(width / 2, cy - 230, `Верно: ${this.correct} из ${this.queue.length} · ошибок: ${this.errors}`, {
-        fontFamily: FONT,
-        fontSize: '26px',
-        color: INK_HEX,
-      })
+      .text(
+        width / 2,
+        cy - 230,
+        `Верно: ${this.correct} из ${this.queue.length} · ошибок: ${Math.min(this.errors, MAX_ERRORS)}`,
+        {
+          fontFamily: FONT,
+          fontSize: '26px',
+          color: INK_HEX,
+        },
+      )
       .setOrigin(0.5);
     this.rewardText = this.add
       .text(width / 2, cy - 180, `Жетоны: +${this.finishTokenTotal} · XP: +${this.finishXpTotal}`, {
@@ -960,20 +1006,24 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
 
+    // Без строк скор/звание середина панели остаётся пустой — поднимаю блок кнопок
+    const extras = (this.isDaily ? 1 : 0) + (rankAfter.index > this.rankIndexStart ? 1 : 0);
+    const lift = extras === 0 ? 100 : extras === 1 ? 55 : 0;
+
     // ×2 жетоны за rewarded (ГДД разд. 7) — один раз, всегда доступно
     this.doubleBtn = makeButton(
       this,
       width / 2,
-      cy + 110,
+      cy + 110 - lift,
       '×2 жетоны за рекламу',
       () => this.applyDoubleReward(),
       { color: THEME.PANEL_DARK, width: 380, fontSize: 26 },
     );
-    makeButton(this, width / 2, cy + 215, 'Следующая смена', () => this.scene.restart(), {
+    makeButton(this, width / 2, cy + 215 - lift, 'Следующая смена', () => this.scene.restart(), {
       color: THEME.ACCENT,
       width: 340,
     });
-    makeButton(this, width / 2, cy + 305, 'В меню', () => this.scene.start('Menu'), {
+    makeButton(this, width / 2, cy + 305 - lift, 'В меню', () => this.scene.start('Menu'), {
       secondary: true,
       width: 280,
     });
