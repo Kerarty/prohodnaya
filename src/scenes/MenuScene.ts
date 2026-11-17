@@ -8,11 +8,12 @@ import { applyCamera, OVERLAY, screenCenter, DESIGN_CX, DESIGN_W } from '../rend
 import { bulbWave } from '../render/juice';
 import { FONT, INK_HEX, THEME } from '../render/theme';
 import { sfx } from '../systems/sfx';
-import { createMatchAPI, LocalMatchAPI, type MatchAPI } from '../net/matchApi';
+import { createMatchAPI, getPlayerIdentity, LocalMatchAPI, type MatchAPI } from '../net/matchApi';
 import { isP2PNoSlotsError } from '../net/p2p';
 import { queueLaunch } from './GameScene';
 import { makeButton } from '../ui/button';
 import { promptCode } from '../ui/lobbyUi';
+import { showTop50 } from '../ui/top50Ui';
 import { t } from '../i18n';
 import { rankTitle } from '../i18n/labels';
 import { makeLangButton } from '../ui/langPicker';
@@ -617,21 +618,21 @@ export class MenuScene extends Phaser.Scene {
       .setDepth(20);
     const plate = this.add.graphics().setDepth(20);
     plate.fillStyle(THEME.PAPER, 1);
-    plate.fillRoundedRect(-250, -190, 500, 380, 20);
+    plate.fillRoundedRect(-250, -230, 500, 460, 20);
     plate.lineStyle(5, THEME.INK, 1);
-    plate.strokeRoundedRect(-250, -190, 500, 380, 20);
+    plate.strokeRoundedRect(-250, -230, 500, 460, 20);
     plate.fillStyle(THEME.ACCENT, 1);
-    plate.fillRoundedRect(-140, -176, 280, 44, 12);
+    plate.fillRoundedRect(-140, -216, 280, 44, 12);
     plate.lineStyle(3, THEME.INK, 1);
-    plate.strokeRoundedRect(-140, -176, 280, 44, 12);
+    plate.strokeRoundedRect(-140, -216, 280, 44, 12);
 
     const title = this.add
-      .text(0, -154, t('statsTitle'), { fontFamily: FONT, fontSize: '24px', color: '#ffffff', fontStyle: 'bold' })
+      .text(0, -194, t('statsTitle'), { fontFamily: FONT, fontSize: '24px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setStroke(INK_HEX, 3);
 
     const blitzLine = this.add
-      .text(0, -80, t('blitzStatsLine', { r: s.mp.blitzRating, best: s.mp.blitzBest, n: s.mp.blitzRuns }), {
+      .text(0, -124, t('blitzStatsLine', { r: s.mp.blitzRating, best: s.mp.blitzBest, n: s.mp.blitzRuns }), {
         fontFamily: FONT,
         fontSize: '20px',
         color: INK_HEX,
@@ -641,7 +642,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const duelLine = this.add
-      .text(0, -16, t('duelStatsLine', { r: s.mp.duelRating, w: s.mp.duelWins, l: s.mp.duelLosses, d: s.mp.duelDraws }), {
+      .text(0, -68, t('duelStatsLine', { r: s.mp.duelRating, w: s.mp.duelWins, l: s.mp.duelLosses, d: s.mp.duelDraws }), {
         fontFamily: FONT,
         fontSize: '20px',
         color: INK_HEX,
@@ -651,14 +652,30 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const streakLine = this.add
-      .text(0, 48, t('bestStreakLine', { n: s.bestStreak }), {
+      .text(0, -12, t('bestStreakLine', { n: s.bestStreak }), {
         fontFamily: FONT,
         fontSize: '20px',
         color: INK_HEX,
       })
       .setOrigin(0.5);
 
-    const back = makeButton(this, 0, 120, t('back'), () => this.closeStats(), {
+    const top50Btn = makeButton(this, 0, 56, t('top50Btn'), () => {
+      showTop50(this, getPlayerIdentity().name, {
+        blitzRating: s.mp.blitzRating,
+        duelRating: s.mp.duelRating,
+        blitzBest: s.mp.blitzBest,
+        duelWins: s.mp.duelWins,
+        duelLosses: s.mp.duelLosses,
+        duelDraws: s.mp.duelDraws,
+      });
+    }, {
+      color: THEME.PANEL,
+      width: 320,
+      height: 60,
+      fontSize: 22,
+    });
+
+    const back = makeButton(this, 0, 148, t('back'), () => this.closeStats(), {
       secondary: true,
       width: 300,
       height: 64,
@@ -666,7 +683,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     this.statsUi = this.add
-      .container(DESIGN_CX, screenCenter().y, [dim, plate, title, blitzLine, duelLine, streakLine, back])
+      .container(DESIGN_CX, screenCenter().y, [dim, plate, title, blitzLine, duelLine, streakLine, top50Btn, back])
       .setDepth(20);
   }
 

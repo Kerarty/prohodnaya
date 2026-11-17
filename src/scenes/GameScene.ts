@@ -43,8 +43,9 @@ import { t } from '../i18n';
 import { sfx } from '../systems/sfx';
 import { makeButton } from '../ui/button';
 import { makeLangButton } from '../ui/langPicker';
-import { createMatchAPI } from '../net/matchApi';
+import { createMatchAPI, getPlayerIdentity } from '../net/matchApi';
 import type { MatchAPI, MatchOutcome, MatchPoll } from '../net/matchApi';
+import { reportMyProfile } from '../net/top50';
 
 const BOARD_W = 540; // зазоры от кнопок «Меню» и языка по краям
 const BOARD_CY = 130;
@@ -1192,6 +1193,20 @@ export class GameScene extends Phaser.Scene {
     return this.correct * 10 + this.fastCount;
   }
 
+  /** Профиль в глобальный топ-50 (рейтинги обновлены); без сервера — тихо офлайн. */
+  private reportProfile(): void {
+    const s = session();
+    void reportMyProfile({
+      name: getPlayerIdentity().name,
+      blitzRating: s.mp.blitzRating,
+      duelRating: s.mp.duelRating,
+      blitzBest: s.mp.blitzBest,
+      duelWins: s.mp.duelWins,
+      duelLosses: s.mp.duelLosses,
+      duelDraws: s.mp.duelDraws,
+    });
+  }
+
   /** Блиц: скор в лидерборды Яндекса (blitzDay/blitzBest), рекорд и рейтинг в сейв. */
   private finishBlitz(score: number): void {
     const s = session();
@@ -1202,6 +1217,7 @@ export class GameScene extends Phaser.Scene {
     if (score > previousBest) getPlatform().happytime();
     const br = blitzRatingUpdate(s.mp.blitzRating, score);
     s.mp.blitzRating = br.rating;
+    this.reportProfile();
     void getPlatform().submitScore(BALANCE.boardIds.blitzDay, score);
     void getPlatform().submitScore(BALANCE.boardIds.blitzBest, s.mp.blitzBest);
     void flushSession();
@@ -1344,6 +1360,7 @@ export class GameScene extends Phaser.Scene {
     else if (finalWinner === 'opponent') s.mp.duelLosses += 1;
     else s.mp.duelDraws += 1;
     void flushSession();
+    this.reportProfile();
     // Победа в дуэли — праздник достижений на CrazyGames
     if (finalWinner === 'me') getPlatform().happytime();
 

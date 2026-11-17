@@ -10,3 +10,4 @@ coverage/
 .vscode/
 *.log
 *.local
+p2p-top50.json

@@ -72,6 +72,7 @@ describe('сейв v1 с мультиплеерным блоком', () => {
       duelLosses: 0,
       duelDraws: 0,
       duelRating: 1000,
+      name: null,
     });
     expect(defaultSave(20000).mp.duelRating).toBe(1000);
   });

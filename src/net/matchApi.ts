@@ -7,6 +7,7 @@
  */
 
 import { BALANCE, duelDelta } from '../game/economy';
+import { session } from '../game/session';
 import { mulberry32 } from '../game/rng';
 
 export interface MatchPlayerState {
@@ -60,8 +61,16 @@ export interface MatchAPI {
   joinRoom?(code: string): Promise<{ matchId: string; matched: boolean }>;
 }
 
-/** Личность игрока: id на вкладку (для локальных дуэлей) и отображаемое имя. */
+/** Личность игрока: стабильное имя из сейва (топ-50, дуэли) + id на вкладку. */
 export function getPlayerIdentity(): { playerId: string; name: string } {
+  // стабильное имя — из сейва (main.ts генерирует и сохраняет при первом запуске)
+  try {
+    const s = session();
+    if (s.mp.name) return { playerId: `tab-${s.mp.name}`, name: s.mp.name };
+  } catch {
+    /* сессия не инициализирована (тесты, ранние вызовы) */
+  }
+  // фолбэк: временный pid на вкладку
   let pid: string | null = null;
   try {
     pid = sessionStorage.getItem('prohodnaya.pid');

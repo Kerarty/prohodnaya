@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { getPlatform, initPlatform } from './platform';
 import { initLocale } from './i18n';
 import { flushSession, initSession, loadSession, session } from './game/session';
+import { getPlayerIdentity } from './net/matchApi';
 import { sfx } from './systems/sfx';
 import { initLayout } from './render/layout';
 import { BootScene } from './scenes/BootScene';
@@ -86,6 +87,11 @@ async function bootstrap(): Promise<void> {
 
   initSession(platform);
   await loadSession();
+  // Стабильное имя игрока (топ-50, соперники в дуэлях): один раз, затем в сейве
+  if (!session().mp.name) {
+    session().mp.name = getPlayerIdentity().name;
+    void flushSession();
+  }
 
   // Локализация: выбор игрока из сейва → ?lang=xx в адресе (проверка локалей) → язык
   // платформы (требование Яндекса 2.14 — автоопределение)

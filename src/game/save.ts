@@ -30,6 +30,8 @@ export interface MultiplayerSave {
   duelLosses: number;
   duelDraws: number;
   duelRating: number;
+  /** Стабильное имя игрока (топ-50, соперники в дуэлях); null — ещё не сгенерировано. */
+  name: string | null;
 }
 
 /** Состояние рекламы для interstitial-политики (ГДД разд. 7). */
@@ -98,7 +100,16 @@ export function defaultSave(todayBase: number): SaveDataV1 {
     currentShift: null,
     dailyPlayed: null,
     nightPlayed: null,
-    mp: { blitzBest: 0, blitzRuns: 0, blitzRating: 1000, duelWins: 0, duelLosses: 0, duelDraws: 0, duelRating: 1000 },
+    mp: {
+      blitzBest: 0,
+      blitzRuns: 0,
+      blitzRating: 1000,
+      duelWins: 0,
+      duelLosses: 0,
+      duelDraws: 0,
+      duelRating: 1000,
+      name: null,
+    },
     soundOn: true,
     ad: { lastAdAt: 0, shiftsSince: 0 },
     lang: null,
@@ -164,6 +175,7 @@ function readMp(raw: unknown): MultiplayerSave {
     blitzBest: int(m.blitzBest, def.blitzBest, 0),
     blitzRuns: int(m.blitzRuns, def.blitzRuns, 0),
     blitzRating: int(m.blitzRating, def.blitzRating, 0),
+    name: typeof m.name === 'string' ? m.name.slice(0, 24) || null : null,
     duelWins: int(m.duelWins, def.duelWins, 0),
     duelLosses: int(m.duelLosses, def.duelLosses, 0),
     duelDraws: int(m.duelDraws, def.duelDraws, 0),
