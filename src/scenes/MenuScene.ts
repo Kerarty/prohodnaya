@@ -252,7 +252,7 @@ export class MenuScene extends Phaser.Scene {
               height: 72,
               fontSize: 24,
               subtitle: !unlocked
-                ? 'со звания Дежурный'
+                ? t('subRank')
                 : nightPlayed
                   ? t('subPlayed')
                   : undefined,
