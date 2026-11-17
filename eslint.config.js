@@ -7,8 +7,8 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Бандл-сервер — чистый Node-скрипт вне tsc-проекта
-    files: ['server/**/*.mjs'],
+    // Node-скрипты вне tsc-проекта: бандл-сервер и приёмник промо-ассетов
+    files: ['server/**/*.mjs', 'promo/**/*.mjs'],
     languageOptions: { globals: globals.node },
   },
 );

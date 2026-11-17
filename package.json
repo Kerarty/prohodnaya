@@ -10,6 +10,8 @@
     "build": "tsc --noEmit && vite build",
     "build:itch": "tsc --noEmit && vite build --mode itch",
     "preview": "vite preview",
+    "promo": "vite --port 5190 --strictPort",
+    "promo:save": "node promo/save-server.mjs",
     "dist": "npm run build && powershell -NoProfile -Command \"Compress-Archive -Path 'dist/*' -DestinationPath 'prohodnaya-yandex.zip' -Force\"",
     "dist:itch": "npm run build:itch && powershell -NoProfile -Command \"Compress-Archive -Path 'dist/*' -DestinationPath 'prohodnaya-itch.zip' -Force\"",
     "test": "vitest run",

@@ -58,7 +58,13 @@ npm run test       # Vitest (78 тестов): генерация, инвари�
 npm run lint
 npm run dist       # сборка + zip для черновика в Консоли Яндекса / CrazyGames
 npm run dist:itch  # сборка + zip для itch.io (без рекламных точек)
+npm run promo      # промо-рендерер обложек/видео для подачи на CrazyGames (docs/promo/)
 ```
+
+Подача на CrazyGames собрана: обложки ×3 (1920×1080 / 800×1200 / 800×800) и
+превью-видео ×2 (16:9 и 2:3, ~19 с, без звука) в `docs/promo/` — рендерятся кодом
+из промо-рендерера (`npm run promo` + `npm run promo:save`); тексты для портала —
+`docs/crazygames-meta.md`, чек-лист — `docs/crazygames-submission.md`.
 
 Локальные дуэли между двумя вкладками:
 

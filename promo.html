@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Promo renderer — Checkpoint</title>
+    <style>
+      /* Те же шрифты, что в игре (обложки должны выглядеть «по-игровому») */
+      @font-face {
+        font-family: 'Balsamiq Sans';
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url('./fonts/balsamiq-400-latin.woff2') format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Balsamiq Sans';
+        font-style: normal;
+        font-weight: 700;
+        font-display: block;
+        src: url('./fonts/balsamiq-700-latin.woff2') format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+FEFF, U+FFFD;
+      }
+      body {
+        margin: 0;
+        background: #2a2438;
+        overflow: hidden;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      #status {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        font: 14px/1.4 Consolas, monospace;
+        color: #ffd9a0;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 8px 12px;
+        border-radius: 8px;
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="status">init…</div>
+    <script>
+      // Диагностика промо-рендера: любая ошибка загрузки/инициализации — в статус
+      window.addEventListener('error', (e) => {
+        document.getElementById('status').textContent =
+          'ERROR: ' + e.message + ' @ ' + (e.filename || '') + ':' + e.lineno;
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        document.getElementById('status').textContent = 'REJECT: ' + String(e.reason);
+      });
+    </script>
+    <script type="module" src="/promo/main.ts"></script>
+  </body>
+</html>
