@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { getPlatform } from '../platform';
 import { BALANCE } from '../game/economy';
 import { dateKey } from '../game/save';
-import { flushSession, resetProgress, session, sessionRank, sessionToday } from '../game/session';
+import { flushSession, session, sessionRank, sessionToday } from '../game/session';
 import { drawBooth } from '../render/booth';
 import { applyCamera, OVERLAY, screenCenter, DESIGN_CX, DESIGN_W } from '../render/layout';
 import { bulbWave } from '../render/juice';
@@ -43,7 +43,6 @@ export class MenuScene extends Phaser.Scene {
   private lobbyUi: Phaser.GameObjects.Container | null = null;
   private settingsUi: Phaser.GameObjects.Container | null = null;
   private statsUi: Phaser.GameObjects.Container | null = null;
-  private resetArmed = false;
 
   constructor() {
     super('Menu');
@@ -699,10 +698,10 @@ export class MenuScene extends Phaser.Scene {
     sfx.tap();
   }
 
-  /** Настройки: звук, сброс прогресса (двухшаговое подтверждение), версия. */
+  /** Настройки: звук, версия. Кнопка сброса прогресса убрана — облачный сейв
+   * игрока не должен стираться из меню (требование площадок). */
   private showSettings(): void {
     if (this.settingsUi) return;
-    this.resetArmed = false;
     const s = session();
 
     // Затемнение — в ЛОКАЛЬНЫХ координатах контейнера (иначе смещается на его центр);
@@ -736,16 +735,8 @@ export class MenuScene extends Phaser.Scene {
     }, { secondary: true, width: 380, fontSize: 24 });
     if (!session().soundOn) soundBtn.setAlpha(0.7);
 
-    const resetLabel = this.resetArmed ? t('resetConfirm') : t('reset');
-    const resetBtn = makeButton(this, 0, -5, resetLabel, () => this.resetFlow(), {
-      secondary: true,
-      width: 380,
-      fontSize: 24,
-      color: this.resetArmed ? THEME.ERROR : undefined,
-    });
-
     const version = this.add
-      .text(0, 82, t('versionLine', { v: '1.0.0' }), { fontFamily: FONT, fontSize: '16px', color: INK_HEX })
+      .text(0, -5, t('versionLine', { v: '1.0.0' }), { fontFamily: FONT, fontSize: '16px', color: INK_HEX })
       .setOrigin(0.5)
       .setAlpha(0.6);
 
@@ -756,7 +747,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     this.settingsUi = this.add
-      .container(DESIGN_CX, screenCenter().y, [dim, plate, title, soundBtn, resetBtn, version, back])
+      .container(DESIGN_CX, screenCenter().y, [dim, plate, title, soundBtn, version, back])
       .setDepth(20);
   }
 
@@ -766,21 +757,9 @@ export class MenuScene extends Phaser.Scene {
     this.showSettings();
   }
 
-  private resetFlow(): void {
-    if (!this.resetArmed) {
-      this.resetArmed = true;
-      this.rebuildSettings();
-      return;
-    }
-    resetProgress();
-    this.closeSettings();
-    this.scene.restart();
-  }
-
   private closeSettings(): void {
     this.settingsUi?.destroy();
     this.settingsUi = null;
-    this.resetArmed = false;
     sfx.tap();
   }
 
