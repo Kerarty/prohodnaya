@@ -36,9 +36,10 @@ class FakePeer implements P2PPeer {
         return;
       }
       net.peers.set(id, this);
-      // сигнал «зарегистрировались» — как настоящий PeerJS после сигналинга
-      setTimeout(() => this.emit('open'), 0);
     }
+    // настоящий PeerJS всегда эмитит open (и с авто-id тоже) — макротаской,
+    // чтобы подписчики из claim()/connectTo() успели навеситься
+    setTimeout(() => this.emit('open'), 0);
   }
 
   on(event: 'open' | 'error' | 'connection', cb: Handler): void {
@@ -205,6 +206,14 @@ describe('P2PMatchAPI (фейковая сеть)', () => {
     expect(outGuest.opponentScore).toBe(120);
     expect(outHost.ratingDelta).toBe(8);
     expect(outGuest.ratingDelta).toBe(-6);
+
+    // РЕГРЕССИЯ: finishDuel после reportResult опрашивает pollMatch —
+    // winner обязан оставаться доступным (сессия чистится с задержкой)
+    const postA = await host.pollMatch(room.matchId);
+    expect(postA.matched).toBe(true);
+    expect(postA.winner).toBe('me');
+    const postB = await guest.pollMatch(room.matchId);
+    expect(postB.winner).toBe('opponent');
   });
 
   it('живой счёт: notifyProgress виден сопернику до финиша', async () => {

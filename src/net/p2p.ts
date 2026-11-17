@@ -166,6 +166,7 @@ export class P2PMatchAPI implements MatchAPI {
   /* ——— быстрый матч ——— */
 
   async quickMatch(): Promise<{ matchId: string; matched: boolean }> {
+    this.teardown();
     const matchId = `p2p-quick-${Math.floor(Math.random() * 1e9).toString(36)}`;
     this.searching = true;
     void this.searchQuick();
@@ -301,6 +302,7 @@ export class P2PMatchAPI implements MatchAPI {
   /* ——— комнаты по коду ——— */
 
   async createRoom(): Promise<{ matchId: string; code: string; matched: boolean }> {
+    this.teardown();
     this.searching = true;
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -324,6 +326,7 @@ export class P2PMatchAPI implements MatchAPI {
   }
 
   async joinRoom(code: string): Promise<{ matchId: string; matched: boolean }> {
+    this.teardown();
     const clean = code.trim().toUpperCase();
     this.searching = true;
     const conn = await this.connectTo(roomId(clean));
@@ -361,7 +364,21 @@ export class P2PMatchAPI implements MatchAPI {
   /* ——— MatchAPI ——— */
 
   async pollMatch(matchId: string): Promise<MatchPoll> {
-    void matchId;
+    // после reportResult сессия чистится с задержкой — winner обязан остаться доступным
+    if (!this.session && this.lastOutcome?.matchId === matchId) {
+      const o = this.lastOutcome.outcome;
+      return {
+        matched: true,
+        seed: null,
+        durationMs: null,
+        startAt: null,
+        opponentName: null,
+        opponentScore: o.opponentScore,
+        opponentFinished: true,
+        winner: o.winner,
+        ratingDelta: o.ratingDelta,
+      };
+    }
     const s = this.session;
     if (!s) {
       if (this.pendingNoSlots) {
@@ -424,8 +441,18 @@ export class P2PMatchAPI implements MatchAPI {
           : score < opponentScore
             ? 'opponent'
             : 'draw';
-    this.teardown();
-    return { winner, myScore: score, opponentScore, ratingDelta: duelDelta(score, opponentScore) };
+    const outcome: MatchOutcome = {
+      winner,
+      myScore: score,
+      opponentScore,
+      ratingDelta: duelDelta(score, opponentScore),
+    };
+    // НЕ рвём сессию сразу: finishDuel после reportResult ещё опрашивает pollMatch;
+    // хаб-слот освобождается с задержкой (панель результата короткая)
+    this.lastOutcome = { matchId, outcome };
+    if (this.teardownTimer !== null) clearTimeout(this.teardownTimer);
+    this.teardownTimer = setTimeout(() => this.teardown(), 2500) as unknown as number;
+    return outcome;
   }
 
   notifyProgress(matchId: string, score: number): void {
@@ -440,6 +467,11 @@ export class P2PMatchAPI implements MatchAPI {
     this.searching = false;
     this.pendingNoSlots = false;
     this.session = null;
+    this.lastOutcome = null;
+    if (this.teardownTimer !== null) {
+      clearTimeout(this.teardownTimer);
+      this.teardownTimer = null;
+    }
     this.peer?.destroy();
     this.peer = null;
     this.peerOpen = false;
@@ -453,6 +485,9 @@ export class P2PMatchAPI implements MatchAPI {
   private pendingNoSlots = false;
   /** WS сигналинга у текущего peer открыт (connect() до open теряет OFFER). */
   private peerOpen = false;
+  /** Итог последнего матча — pollMatch обязан отдавать winner ПОСЛЕ reportResult. */
+  private lastOutcome: { matchId: string; outcome: MatchOutcome } | null = null;
+  private teardownTimer: number | null = null;
   private readonly myName: string;
 
   constructor(
@@ -464,7 +499,9 @@ export class P2PMatchAPI implements MatchAPI {
 
   private p2pErr(type: string): Error {
     // Отладочный хвост последней ошибки P2P (как window.__errs) — видно в консоли смоука
-    (window as unknown as { __p2pLastErr?: string }).__p2pLastErr = type;
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __p2pLastErr?: string }).__p2pLastErr = type;
+    }
     const e = new Error(`p2p:${type}`);
     (e as { p2pType?: string }).p2pType = type;
     return e;
@@ -601,6 +638,11 @@ export class P2PMatchAPI implements MatchAPI {
   private teardown(): void {
     this.session = null;
     this.searching = false;
+    this.lastOutcome = null;
+    if (this.teardownTimer !== null) {
+      clearTimeout(this.teardownTimer);
+      this.teardownTimer = null;
+    }
     this.peer?.destroy();
     this.peer = null;
     this.peerOpen = false;
