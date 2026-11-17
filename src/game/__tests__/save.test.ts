@@ -28,6 +28,17 @@ describe('сейв (день 5)', () => {
     expect(normalizeSave(null, 20000)).toEqual(defaultSave(20000));
   });
 
+  it('normalizeSave: рейтинги блица/дуэлей — дефолт 1000 при отсутствии и мусоре', () => {
+    // старый сейв без blitzRating вообще (сейвы до системы рейтинга)
+    const legacy = normalizeSave({ version: 1, mp: { blitzBest: 40, duelRating: 1012 } }, 20000);
+    expect(legacy.mp.blitzRating).toBe(1000);
+    expect(legacy.mp.duelRating).toBe(1012);
+    // мусор в поле → дефолт
+    const broken = normalizeSave({ version: 1, mp: { blitzRating: 'много', duelRating: -5 } }, 20000);
+    expect(broken.mp.blitzRating).toBe(1000);
+    expect(broken.mp.duelRating).toBe(0); // отрицательный int → 0 (не клампится к 1000)
+  });
+
   it('normalizeSave: битые и отрицательные поля заменяются', () => {
     const s = normalizeSave(
       {

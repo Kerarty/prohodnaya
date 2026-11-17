@@ -41,6 +41,7 @@ export class MenuScene extends Phaser.Scene {
   private waitingApi: MatchAPI | null = null;
   private lobbyUi: Phaser.GameObjects.Container | null = null;
   private settingsUi: Phaser.GameObjects.Container | null = null;
+  private statsUi: Phaser.GameObjects.Container | null = null;
   private resetArmed = false;
 
   constructor() {
@@ -287,7 +288,38 @@ export class MenuScene extends Phaser.Scene {
       rows.push({
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2 - 98, 1004, t('platformTest'), () => this.scene.start('PlatformTest'), {
+          makeButton(this, width / 2 - 130, 1004, t('statsBtn'), () => this.showStats(), {
+            secondary: true,
+            width: 124,
+            height: 72,
+            fontSize: 16,
+          }),
+      });
+      rows.push({
+        alpha: 1,
+        make: () =>
+          makeButton(this, width / 2, 1004, t('platformTest'), () => this.scene.start('PlatformTest'), {
+            secondary: true,
+            width: 124,
+            height: 72,
+            fontSize: 16,
+          }),
+      });
+      rows.push({
+        alpha: 1,
+        make: () =>
+          makeButton(this, width / 2 + 130, 1004, t('settings'), () => this.showSettings(), {
+            secondary: true,
+            width: 124,
+            height: 72,
+            fontSize: 16,
+          }),
+      });
+    } else {
+      rows.push({
+        alpha: 1,
+        make: () =>
+          makeButton(this, width / 2 - 98, 1004, t('statsBtn'), () => this.showStats(), {
             secondary: true,
             width: 186,
             height: 72,
@@ -300,17 +332,6 @@ export class MenuScene extends Phaser.Scene {
           makeButton(this, width / 2 + 98, 1004, t('settings'), () => this.showSettings(), {
             secondary: true,
             width: 186,
-            height: 72,
-            fontSize: 18,
-          }),
-      });
-    } else {
-      rows.push({
-        alpha: 1,
-        make: () =>
-          makeButton(this, width / 2, 1004, t('settings'), () => this.showSettings(), {
-            secondary: true,
-            width: 280,
             height: 72,
             fontSize: 18,
           }),
@@ -583,6 +604,76 @@ export class MenuScene extends Phaser.Scene {
       api,
     });
     this.scene.start('Game');
+  }
+
+  /** Панель статистики: рейтинги блица и дуэлей, рекорды — всё в одном месте. */
+  private showStats(): void {
+    if (this.statsUi) return;
+    const s = session();
+
+    const dim = this.add
+      .rectangle(0, 0, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive()
+      .setDepth(20);
+    const plate = this.add.graphics().setDepth(20);
+    plate.fillStyle(THEME.PAPER, 1);
+    plate.fillRoundedRect(-250, -190, 500, 380, 20);
+    plate.lineStyle(5, THEME.INK, 1);
+    plate.strokeRoundedRect(-250, -190, 500, 380, 20);
+    plate.fillStyle(THEME.ACCENT, 1);
+    plate.fillRoundedRect(-140, -176, 280, 44, 12);
+    plate.lineStyle(3, THEME.INK, 1);
+    plate.strokeRoundedRect(-140, -176, 280, 44, 12);
+
+    const title = this.add
+      .text(0, -154, t('statsTitle'), { fontFamily: FONT, fontSize: '24px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setStroke(INK_HEX, 3);
+
+    const blitzLine = this.add
+      .text(0, -80, t('blitzStatsLine', { r: s.mp.blitzRating, best: s.mp.blitzBest, n: s.mp.blitzRuns }), {
+        fontFamily: FONT,
+        fontSize: '20px',
+        color: INK_HEX,
+        align: 'center',
+        wordWrap: { width: 440 },
+      })
+      .setOrigin(0.5);
+
+    const duelLine = this.add
+      .text(0, -16, t('duelStatsLine', { r: s.mp.duelRating, w: s.mp.duelWins, l: s.mp.duelLosses, d: s.mp.duelDraws }), {
+        fontFamily: FONT,
+        fontSize: '20px',
+        color: INK_HEX,
+        align: 'center',
+        wordWrap: { width: 440 },
+      })
+      .setOrigin(0.5);
+
+    const streakLine = this.add
+      .text(0, 48, t('bestStreakLine', { n: s.bestStreak }), {
+        fontFamily: FONT,
+        fontSize: '20px',
+        color: INK_HEX,
+      })
+      .setOrigin(0.5);
+
+    const back = makeButton(this, 0, 120, t('back'), () => this.closeStats(), {
+      secondary: true,
+      width: 300,
+      height: 64,
+      fontSize: 24,
+    });
+
+    this.statsUi = this.add
+      .container(DESIGN_CX, screenCenter().y, [dim, plate, title, blitzLine, duelLine, streakLine, back])
+      .setDepth(20);
+  }
+
+  private closeStats(): void {
+    this.statsUi?.destroy();
+    this.statsUi = null;
+    sfx.tap();
   }
 
   /** Настройки: звук, сброс прогресса (двухшаговое подтверждение), версия. */

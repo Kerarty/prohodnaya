@@ -58,5 +58,8 @@
   "duelStartRating": 1000,
   "duelWinDelta": 8,
   "duelLossDelta": -6,
-  "duelDrawDelta": 0
+  "duelDrawDelta": 0,
+  "blitzRatingScale": 0.12,
+  "blitzRatingStep": 10,
+  "blitzRatingCap": 30
 }

@@ -24,6 +24,8 @@ export interface ShiftProgress {
 export interface MultiplayerSave {
   blitzBest: number;
   blitzRuns: number;
+  /** Рейтинг блица: самокалибруется к фактическому уровню игрока. */
+  blitzRating: number;
   duelWins: number;
   duelLosses: number;
   duelDraws: number;
@@ -96,7 +98,7 @@ export function defaultSave(todayBase: number): SaveDataV1 {
     currentShift: null,
     dailyPlayed: null,
     nightPlayed: null,
-    mp: { blitzBest: 0, blitzRuns: 0, duelWins: 0, duelLosses: 0, duelDraws: 0, duelRating: 1000 },
+    mp: { blitzBest: 0, blitzRuns: 0, blitzRating: 1000, duelWins: 0, duelLosses: 0, duelDraws: 0, duelRating: 1000 },
     soundOn: true,
     ad: { lastAdAt: 0, shiftsSince: 0 },
     lang: null,
@@ -161,6 +163,7 @@ function readMp(raw: unknown): MultiplayerSave {
   return {
     blitzBest: int(m.blitzBest, def.blitzBest, 0),
     blitzRuns: int(m.blitzRuns, def.blitzRuns, 0),
+    blitzRating: int(m.blitzRating, def.blitzRating, 0),
     duelWins: int(m.duelWins, def.duelWins, 0),
     duelLosses: int(m.duelLosses, def.duelLosses, 0),
     duelDraws: int(m.duelDraws, def.duelDraws, 0),

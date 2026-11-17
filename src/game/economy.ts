@@ -44,6 +44,22 @@ export function duelDelta(myScore: number, opponentScore: number): number {
   return myScore > opponentScore ? BALANCE.duelWinDelta : BALANCE.duelLossDelta;
 }
 
+/**
+ * Рейтинг блица — самокалибрующийся к фактическому уровню игрока: рейтинг
+ * задаёт «ожидаемый скор» (rating × scale), дельта = (факт − ожидание) / step
+ * с потолком cap. Сильные забеги тянут вверх, слабые — вниз, у своего уровня
+ * дельты затухают. В блице соперника нет — калибруемся против себя.
+ */
+export function blitzRatingUpdate(
+  rating: number,
+  score: number,
+): { rating: number; delta: number } {
+  const expected = rating * BALANCE.blitzRatingScale;
+  const raw = (score - expected) / BALANCE.blitzRatingStep;
+  const delta = Math.max(-BALANCE.blitzRatingCap, Math.min(BALANCE.blitzRatingCap, Math.round(raw)));
+  return { rating: Math.max(0, rating + delta), delta };
+}
+
 export function rankFor(xp: number): { index: number; title: string; nextXp: number | null } {
   const ranks = BALANCE.ranks;
   let index = 0;

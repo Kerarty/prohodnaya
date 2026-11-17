@@ -67,6 +67,7 @@ describe('сейв v1 с мультиплеерным блоком', () => {
     expect(s.mp).toEqual({
       blitzBest: 0,
       blitzRuns: 0,
+      blitzRating: 1000,
       duelWins: 0,
       duelLosses: 0,
       duelDraws: 0,

@@ -4,6 +4,7 @@ import { describeForgery, describeViolation } from '../game/application';
 import type { Application, Decision, DocFieldId } from '../game/application';
 import {
   BALANCE,
+  blitzRatingUpdate,
   BOARD_IDS,
   correctReward,
   dailyScore,
@@ -1191,7 +1192,7 @@ export class GameScene extends Phaser.Scene {
     return this.correct * 10 + this.fastCount;
   }
 
-  /** Блиц: скор в лидерборды Яндекса (blitzDay/blitzBest) и свой рекорд в сейв. */
+  /** Блиц: скор в лидерборды Яндекса (blitzDay/blitzBest), рекорд и рейтинг в сейв. */
   private finishBlitz(score: number): void {
     const s = session();
     const previousBest = s.mp.blitzBest;
@@ -1199,6 +1200,8 @@ export class GameScene extends Phaser.Scene {
     s.mp.blitzBest = Math.max(s.mp.blitzBest, score);
     // Новый личный рекорд — праздник достижений на CrazyGames (редкое событие)
     if (score > previousBest) getPlatform().happytime();
+    const br = blitzRatingUpdate(s.mp.blitzRating, score);
+    s.mp.blitzRating = br.rating;
     void getPlatform().submitScore(BALANCE.boardIds.blitzDay, score);
     void getPlatform().submitScore(BALANCE.boardIds.blitzBest, s.mp.blitzBest);
     void flushSession();
@@ -1249,11 +1252,18 @@ export class GameScene extends Phaser.Scene {
         color: INK_HEX,
       })
       .setOrigin(0.5);
+    this.add
+      .text(width / 2, cy - 8, t('blitzRatingLine', { r: s.mp.blitzRating, d: `${br.delta >= 0 ? '+' : ''}${br.delta}` }), {
+        fontFamily: FONT,
+        fontSize: '22px',
+        color: INK_HEX,
+      })
+      .setOrigin(0.5);
     makeButton(this, width / 2, cy + 60, t('again'), () => {
       pendingLaunch = { blitz: true };
       this.scene.restart();
     }, { color: THEME.ACCENT, width: 340 });
-    makeButton(this, width / 2, cy + 145, t('toMenu'), () => this.exitToMenuAfterResults(), {
+    makeButton(this, width / 2, cy + 152, t('toMenu'), () => this.exitToMenuAfterResults(), {
       secondary: true,
       width: 280,
     });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BALANCE,
+  blitzRatingUpdate,
   correctReward,
   dailyScore,
   nightReward,
@@ -51,5 +52,43 @@ describe('экономика (день 5–6)', () => {
     expect(shouldShowInterstitial({ ...fresh, lastAdAt: now - BALANCE.interstitialMinGapMs }, 4, now)).toBe(true);
     // дефолтный сейв: ничего не показываем
     expect(shouldShowInterstitial(defaultSave(0).ad, 4, now)).toBe(false);
+  });
+
+  it('рейтинг блица: самокалибровка, потолок дельты и пол нуля', () => {
+    const { blitzRatingScale: scale, blitzRatingStep: step, blitzRatingCap: cap } = BALANCE;
+    // старт 1000: ожидаемый скор = 1000 × scale
+    const expectedAt1000 = 1000 * scale;
+    // забег заметно выше ожидания — рейтинг растёт
+    const up = blitzRatingUpdate(1000, expectedAt1000 + step * 5);
+    expect(up.delta).toBe(5);
+    expect(up.rating).toBe(1005);
+    // забег ниже ожидания — падает
+    const down = blitzRatingUpdate(1000, Math.max(0, expectedAt1000 - step * 7));
+    expect(down.delta).toBe(-7);
+    // потолок дельты: вверх — забег сильно выше ожидания,
+    // вниз — высокий рейтинг при нулевом скор (ожидание 480, кап ограничивает −48 → −30)
+    const cappedUp = blitzRatingUpdate(1000, expectedAt1000 + 1000);
+    expect(cappedUp.delta).toBe(cap);
+    const cappedDown = blitzRatingUpdate(4000, 0);
+    expect(cappedDown.delta).toBe(-cap);
+    expect(cappedDown.rating).toBe(4000 - cap);
+    // реалистичный минимум со старта: нулевой забег с рейтинга 1000 → −12
+    expect(blitzRatingUpdate(1000, 0)).toMatchObject({ delta: -12, rating: 988 });
+    // пол: рейтинг не уходит в минус
+    const floored = blitzRatingUpdate(5, 0);
+    expect(floored.rating).toBeGreaterThanOrEqual(0);
+    // сходимость: серия «идеальных» забегов тянется к фактическому уровню
+    let r = 1000;
+    const level = 400;
+    for (let i = 0; i < 1000; i++) {
+      r = blitzRatingUpdate(r, level).rating;
+    }
+    expect(Math.abs(r - level / scale)).toBeLessThanOrEqual(cap * 2);
+    // и не уходит за него бесконечно: дельта у цели мала
+    expect(Math.abs(blitzRatingUpdate(r, level).delta)).toBeLessThanOrEqual(1);
+  });
+
+  it('рейтинг блица в дефолтном сейве = 1000', () => {
+    expect(defaultSave(0).mp.blitzRating).toBe(1000);
   });
 });
