@@ -123,6 +123,11 @@ export class GameScene extends Phaser.Scene {
   private doubled = false;
   private rewardText: Phaser.GameObjects.Text | null = null;
   private doubleBtn: Phaser.GameObjects.Container | null = null;
+  /** Оверлей ожидания рекламы: гасит экран, блокирует клики, крутит спиннер. */
+  private adOverlay: {
+    dim: Phaser.GameObjects.Rectangle;
+    spinner: Phaser.GameObjects.Graphics;
+  } | null = null;
   private busy = true;
   private guest: Phaser.GameObjects.Container | null = null;
   private card: PassCard | null = null;
@@ -493,13 +498,42 @@ export class GameScene extends Phaser.Scene {
     sfx.tap();
   }
 
-  /** Rewarded с паузой и заглушением звука (п. 4.7 правил Яндекса). */
+  /** Оверлей ожидания рекламы: гасит экран, блокирует клики, крутит спиннер. */
+  private showAdOverlay(): void {
+    if (this.adOverlay) return;
+    const dim = this.add
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.55)
+      .setInteractive() // не пускает клики к кнопкам сцены на время аукциона рекламы
+      .setDepth(90);
+    const spinner = this.add.graphics().setDepth(91);
+    spinner.setPosition(DESIGN_CX, screenCenter().y);
+    spinner.lineStyle(7, THEME.PAPER, 1);
+    spinner.beginPath();
+    spinner.arc(0, 0, 26, 0, Math.PI * 1.4);
+    spinner.strokePath();
+    this.tweens.add({ targets: spinner, angle: 360, duration: 900, repeat: -1 });
+    this.adOverlay = { dim, spinner };
+  }
+
+  private hideAdOverlay(): void {
+    if (!this.adOverlay) return;
+    this.tweens.killTweensOf(this.adOverlay.spinner);
+    this.adOverlay.dim.destroy();
+    this.adOverlay.spinner.destroy();
+    this.adOverlay = null;
+  }
+
+  /**
+   * Rewarded с паузой и блокировкой UI (требование CG: UI заблокирован до
+   * adFinished/adError; звук глушится платформой в момент реального старта
+   * рекламы, не в момент запроса).
+   */
   private async showRewardedSafe(onReward: () => void): Promise<'shown' | 'failed'> {
     const wasBusy = this.busy;
     this.setButtonsEnabled(false);
-    sfx.setMuted(true);
+    this.showAdOverlay();
     try {
-      const result = await getPlatform().showRewarded(onReward);
+      const result = await getPlatform().showRewarded(onReward, () => sfx.setMuted(true));
       if (result === 'shown') {
         // Минимальный интервал interstitial отсчитывается и от rewarded (ГДД разд. 7)
         session().ad.lastAdAt = Date.now();
@@ -507,6 +541,7 @@ export class GameScene extends Phaser.Scene {
       }
       return result;
     } finally {
+      this.hideAdOverlay();
       sfx.setMuted(!session().soundOn);
       if (!wasBusy) this.setButtonsEnabled(true);
     }
@@ -522,10 +557,13 @@ export class GameScene extends Phaser.Scene {
     s.ad.lastAdAt = Date.now();
     s.ad.shiftsSince = 0;
     void flushSession();
-    sfx.setMuted(true);
+    // Требование CG: игра на паузе — UI заблокирован (оверлей+спиннер), пока
+    // идёт аукцион и показ; звук — только с момента реального старта рекламы
+    this.showAdOverlay();
     void getPlatform()
-      .showInterstitial()
+      .showInterstitial(() => sfx.setMuted(true))
       .finally(() => {
+        this.hideAdOverlay();
         sfx.setMuted(!s.soundOn);
         this.scene.start('Menu');
       });
@@ -547,7 +585,9 @@ export class GameScene extends Phaser.Scene {
         this.detectorAdUses += 1;
         this.createToolButtons();
       }).then((r) => {
+        // Adblock/unfilled: кнопка не должна «молчать» — объясняем, почему награды нет
         if (r === 'shown') this.toast(t('toastChargeGot'));
+        else this.toast(t('toastAdUnavailable'));
       });
       return;
     }
@@ -1172,6 +1212,9 @@ export class GameScene extends Phaser.Scene {
       this.doubleBtn?.destroy();
       this.doubleBtn = null;
       this.rewardText?.setText(t('rewardsLine', { t: this.finishTokenTotal * 2, x: this.finishXpTotal }));
+    }).then((r) => {
+      // Adblock/unfilled: объясняем, почему удвоения не случилось (кнопка не «пустышка»)
+      if (r === 'failed') this.toast(t('toastAdUnavailable'));
     });
   }
 

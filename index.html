@@ -55,6 +55,11 @@
         background: #ffedd3;
         overflow: hidden;
         touch-action: none;
+        /* Требование CrazyGames (мобильные): без этого выделение текста/зум
+           ломают тап-управление; вендорные префиксы — как в их доке */
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
       }
     #app {
       width: 100%;

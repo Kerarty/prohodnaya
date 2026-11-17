@@ -85,6 +85,7 @@ export const en = {
   toastDocOk: 'Pass looks valid — check the rules of the day',
   toastChargeGot: 'Extra detector charge earned',
   toastAdFailed: 'Ad unavailable — the shift will end',
+  toastAdUnavailable: 'Ad unavailable — try again later',
   toastForgiven: 'Mistake forgiven — shift continues',
   floatPlus: '+{n}',
   mistake: 'Mistake',

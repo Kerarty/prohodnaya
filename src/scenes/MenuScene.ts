@@ -523,6 +523,12 @@ export class MenuScene extends Phaser.Scene {
       this.waitingApi = api;
       const room = await api.createRoom();
       this.waitingMatchId = room.matchId;
+      // Room Data (CrazyGames): комната открыта для Join/Invite на стороне сайта
+      getPlatform().updateRoom?.({
+        roomId: room.matchId,
+        isJoinable: true,
+        inviteParams: { duel: room.code },
+      });
       this.showWaiting(room.code);
       this.waitingEvent = this.time.addEvent({
         delay: 2000,
@@ -834,6 +840,8 @@ export class MenuScene extends Phaser.Scene {
     this.waitingUi?.destroy();
     this.waitingUi = null;
     this.waitingApi = null;
+    // Room Data (CrazyGames): матч начался/поиск отменён — комната больше не joinable
+    getPlatform().leftRoom?.();
   }
 
   private cancelWaiting(): void {

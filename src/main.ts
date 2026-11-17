@@ -87,9 +87,11 @@ async function bootstrap(): Promise<void> {
 
   initSession(platform);
   await loadSession();
-  // Стабильное имя игрока (топ-50, соперники в дуэлях): один раз, затем в сейве
+  // Стабильное имя игрока (топ-50, соперники в дуэлях): один раз, затем в сейве.
+  // Приоритет — ник платформы (CrazyGames username: требование CG «в игре видны
+  // платформенные ники»), фолбэк — сгенерированное имя.
   if (!session().mp.name) {
-    session().mp.name = getPlayerIdentity().name;
+    session().mp.name = platform.getUserName?.() ?? getPlayerIdentity().name;
     void flushSession();
   }
 

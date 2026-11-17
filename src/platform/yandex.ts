@@ -140,7 +140,7 @@ export class YandexPlatform implements PlatformAPI {
     return readFallback();
   }
 
-  showRewarded(onReward: () => void): Promise<'shown' | 'failed'> {
+  showRewarded(onReward: () => void, onAdStart?: () => void): Promise<'shown' | 'failed'> {
     return new Promise((resolve) => {
       let settled = false;
       const settle = (v: 'shown' | 'failed') => {
@@ -151,7 +151,12 @@ export class YandexPlatform implements PlatformAPI {
       };
       this.ysdk!.adv.showRewardedVideo({
         callbacks: {
-          onOpen: () => settle('shown'),
+          // onOpen — реклама реально показана: глушим звук здесь (как требует CG;
+          // у Яндекса тот же смысл п. 4.7)
+          onOpen: () => {
+            onAdStart?.();
+            settle('shown');
+          },
           onRewarded: () => onReward(),
           onClose: () => settle('shown'),
           onError: () => settle('failed'),
@@ -160,8 +165,11 @@ export class YandexPlatform implements PlatformAPI {
     });
   }
 
-  showInterstitial(): Promise<void> {
+  showInterstitial(onAdStart?: () => void): Promise<void> {
     return new Promise((resolve) => {
+      // У showFullscreenAdv Яндекса нет коллбэка «началось» — глушим звук
+      // на запросе (старое поведение п. 4.7); unfilled вернёт звук в finally.
+      onAdStart?.();
       this.ysdk!.adv.showFullscreenAdv({
         callbacks: { onClose: () => resolve(), onError: () => resolve() },
       });

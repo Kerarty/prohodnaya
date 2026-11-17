@@ -9,6 +9,8 @@ interface CrazySdk {
   user: {
     /** Синхронно после init: локаль вида 'en-US', страна, устройство. */
     systemInfo?: { locale?: string };
+    /** null — игрок не залогинен (гость). */
+    getUser(): Promise<{ username?: string } | null>;
   };
   game: {
     loadingStart(): void;
@@ -23,6 +25,9 @@ interface CrazySdk {
     inviteLink(params: Record<string, string>): Promise<string>;
     /** Чтение параметров запуска-приглашения. */
     getInviteParam(key: string): string | null;
+    /** Room Data: комната питает кнопки Join/Invite на сайте. */
+    updateRoom?(room: { roomId?: string; isJoinable?: boolean; inviteParams?: Record<string, string> }): void;
+    leftRoom?(): void;
   };
   ad: {
     requestAd(type: 'midgame' | 'rewarded', callbacks: {
@@ -86,6 +91,8 @@ export class CrazyPlatform extends LocalPlatform {
   readonly name: PlatformName = 'Crazy';
 
   private sdk: CrazySdk | null = null;
+  /** CrazyGames username (требование мультиплеера CG) — null для гостей. */
+  private userName: string | null = null;
 
   async init(): Promise<void> {
     // Деградация вместо падения: без SDK игра работает на локальной базе
@@ -113,6 +120,39 @@ export class CrazyPlatform extends LocalPlatform {
       this.sdk.game.loadingStart();
     } catch (e) {
       console.warn('[platform:crazy] loadingStart упал', e);
+    }
+    // Username для дуэлей: друзья должны видеть платформенные ники (требование CG)
+    await this.loadUserName();
+  }
+
+  /** Отдельный метод — чтобы тест проверял контракт без сетевого init(). */
+  private async loadUserName(): Promise<void> {
+    if (!this.sdk) return;
+    try {
+      const user = await this.sdk.user.getUser();
+      this.userName = user?.username ?? null;
+    } catch {
+      /* 'disabled'-режим или гость — имя останется сгенерированным */
+    }
+  }
+
+  getUserName(): string | null {
+    return this.userName;
+  }
+
+  updateRoom(room: { roomId?: string; isJoinable?: boolean; inviteParams?: Record<string, string> }): void {
+    try {
+      this.sdk?.game.updateRoom?.(room);
+    } catch (e) {
+      console.warn('[platform:crazy] updateRoom упал', e);
+    }
+  }
+
+  leftRoom(): void {
+    try {
+      this.sdk?.game.leftRoom?.();
+    } catch (e) {
+      console.warn('[platform:crazy] leftRoom упал', e);
     }
   }
 
@@ -203,7 +243,7 @@ export class CrazyPlatform extends LocalPlatform {
     return readFallback();
   }
 
-  showRewarded(onReward: () => void): Promise<'shown' | 'failed'> {
+  showRewarded(onReward: () => void, onAdStart?: () => void): Promise<'shown' | 'failed'> {
     return new Promise((resolve) => {
       let settled = false;
       const settle = (v: 'shown' | 'failed') => {
@@ -217,8 +257,12 @@ export class CrazyPlatform extends LocalPlatform {
         return;
       }
       const callbacks = {
-        // Звук/геймплей глушатся вызывающей стороной (showRewardedSafe) до запроса
-        adStarted: () => settle('shown'),
+        // Звук глушится вызывающей стороной только здесь — когда реклама
+        // реально пошла (требование CG: не мутить до запроса)
+        adStarted: () => {
+          onAdStart?.();
+          settle('shown');
+        },
         adFinished: () => {
           onReward(); // награда только за реально просмотренную рекламу
           settle('shown');
@@ -234,13 +278,14 @@ export class CrazyPlatform extends LocalPlatform {
     });
   }
 
-  showInterstitial(): Promise<void> {
+  showInterstitial(onAdStart?: () => void): Promise<void> {
     return new Promise((resolve) => {
       if (!this.sdk) {
         resolve();
         return;
       }
       const callbacks = {
+        adStarted: () => onAdStart?.(),
         adFinished: () => resolve(),
         adError: () => resolve(), // unfilled/adCooldown — игра продолжается без рекламы
       };

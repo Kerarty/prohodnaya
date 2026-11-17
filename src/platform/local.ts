@@ -51,13 +51,16 @@ export class LocalPlatform implements PlatformAPI {
     }
   }
 
-  async showRewarded(onReward: () => void): Promise<'shown' | 'failed'> {
+  async showRewarded(onReward: () => void, onAdStart?: () => void): Promise<'shown' | 'failed'> {
+    // Заглушка имитирует показ: onAdStart сразу (проверка глушения звука в дев-режиме)
+    onAdStart?.();
     await delay(3000);
     onReward();
     return 'shown';
   }
 
-  async showInterstitial(): Promise<void> {
+  async showInterstitial(onAdStart?: () => void): Promise<void> {
+    onAdStart?.();
     await delay(3000);
   }
 

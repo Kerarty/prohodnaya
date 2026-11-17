@@ -12,14 +12,20 @@
 | `game.loadingStop()` при готовности игры | `ready()` → `game.loadingStop()` (фолбэк на легаси `loadingComplete`) |
 | `gameplayStart()` / `gameplayStop()` | те же точки, что для Яндекса: вход заявки/старт забега — панели результатов/прерывание/меню |
 | `happytime()` на достижениях, РЕДКО | новый личный рекорд блица, победа в дуэли, новое звание (по одному, не за каждую смену) |
-| Rewarded через `ad.requestAd('rewarded')` | награда ТОЛЬКО в `adFinished`, звук глушится до запроса |
+| Rewarded через `ad.requestAd('rewarded')` | награда ТОЛЬКО в `adFinished`; звук глушится в `adStarted` (не на запросе — требование CG), возврат в `finally` |
 | Midgame через `ad.requestAd('midgame')` | только на выходе с экранов результатов (та же политика, что interstitial Яндекса); unfilled/adCooldown не блокируют |
+| Ad break: игра на паузе, UI заблокирован | оверлей + спиннер на всё время запроса/показа (rewarded и midgame), кнопки сцены недоступны до `adFinished`/`adError` |
+| Adblock/unfilled: кнопки не «пустышки» | при `adError` — тост «Реклама недоступна» на всех rewarded-точках (детектор, ×2, прощение), игра продолжается |
 | Data Module (прогресс) | `SDK.data.setItem/getItem` + localStorage-фолбэк `prohodnaya.cloud` |
 | Язык игрока | `SDK.user.systemInfo.locale` (v3: environment — строка-режим!) → i18n на 7 локалей |
+| Username в игре | `user.getUser()` при init → ник CG становится именем игрока (дуэли/топ-50), guests — сгенерированное имя |
+| Room Data (Join/Invite) | хост комнаты: `updateRoom({roomId, isJoinable:true, inviteParams:{duel:код}})`; матч начался/отмена — `leftRoom()` (invite button в SDK deprecated) |
 | Зацикленность на их домене | SDK подгружается динамически только на `*.crazygames.com` в production (или `?platform=crazy`) |
-| До геймплея ≤ 20 с | билд ~1.3 МБ, boot < 2 с даже на слабых устройствах |
+| До геймплея ≤ 20 с | билд ~1.4 МБ, boot < 2 с даже на слабых устройствах |
 | Только относительные пути | vite `base: './'` ✓ |
 | Кнопка звука | Настройки → Звук вкл/выкл ✓ |
+| `user-select: none` (мобильные) | в index.html с вендорными префиксами ✓ |
+| Внешние ссылки/кросс-промо | нет ✓; свой fullscreen-кнопки нет ✓ (Escape/фуллскрин — на платформе) |
 
 ## Локальная проверка (без подачи)
 

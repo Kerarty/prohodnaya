@@ -83,6 +83,7 @@ export const ru: Record<TranslationKey, string> = {
   toastDocOk: 'Документ верен — проверяй правила дня',
   toastChargeGot: 'Заряд детектора получен',
   toastAdFailed: 'Реклама недоступна — смена будет завершена',
+  toastAdUnavailable: 'Реклама недоступна — попробуйте позже',
   toastForgiven: 'Ошибка прощена — смена продолжается',
   floatPlus: '+{n}',
   mistake: 'Ошибка',

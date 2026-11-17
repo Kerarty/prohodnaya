@@ -49,11 +49,13 @@ export interface PlatformAPI {
   /**
    * Rewarded-видео. onReward вызывается только за реально просмотренную рекламу
    * (событие onRewarded, не onClose — требование п. 4.7 правил Яндекса).
+   * onAdStart — реклама РЕАЛЬНО началась (CrazyGames: adStarted; требование
+   * документации CG — глушить звук в момент старта, не в момент запроса).
    */
-  showRewarded(onReward: () => void): Promise<'shown' | 'failed'>;
+  showRewarded(onReward: () => void, onAdStart?: () => void): Promise<'shown' | 'failed'>;
 
   /** Interstitial. Игра зовёт только на логических паузах (политика — ГДД, разд. 7). */
-  showInterstitial(): Promise<void>;
+  showInterstitial(onAdStart?: () => void): Promise<void>;
 
   /** Отправить скор в лидерборд (таблица должна существовать в Консоли). */
   submitScore(boardId: string, score: number): Promise<void>;
@@ -66,4 +68,21 @@ export interface PlatformAPI {
 
   /** Ссылка-приглашение с параметром для друга (CrazyGames); иначе null. */
   createInviteLink?(code: string): Promise<string | null>;
+
+  /**
+   * Имя игрока на платформе (CrazyGames username — требование мультиплеера CG:
+   * никнеймы платформы показываются в игре, чтобы друзья узнавали друг друга).
+   * null — платформа не даёт имя или игрок не залогинен.
+   */
+  getUserName?(): string | null;
+
+  /**
+   * Room Data (CrazyGames, мультиплеер): сообщить платформе комнату игрока —
+   * питает кнопки Join/Invite на сайте. roomId уникален среди своих комнат,
+   * isJoinable — к комнате можно присоединиться, inviteParams уезжают другу.
+   */
+  updateRoom?(room: { roomId?: string; isJoinable?: boolean; inviteParams?: Record<string, string> }): void;
+
+  /** Room Data: игрок покинул комнату (матч начался, отмена, выход из лобби). */
+  leftRoom?(): void;
 }

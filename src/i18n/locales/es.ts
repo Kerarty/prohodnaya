@@ -82,6 +82,7 @@ export const es: Record<TranslationKey, string> = {
   toastDocOk: 'El pase es válido — revisa las reglas del día',
   toastChargeGot: 'Carga extra de detector conseguida',
   toastAdFailed: 'Anuncio no disponible — el turno terminará',
+  toastAdUnavailable: 'Anuncio no disponible — inténtalo más tarde',
   toastForgiven: 'Error perdonado — el turno continúa',
   floatPlus: '+{n}',
   mistake: 'Error',
