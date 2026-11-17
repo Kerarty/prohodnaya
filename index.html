@@ -8,11 +8,19 @@
     />
     <title>Проходная</title>
     <!--
-      SDK Яндекс Игр: на хостинге платформы загрузится и определит window.YaGames.
-      Локально файл 404-нет — это штатно: активируется LocalPlatform (заглушка).
-      Скрипт подключён без defer, чтобы sdk.js был доступен до вызова YaGames.init().
+      SDK Яндекс Игр: подключаем ТОЛЬКО на хостинге Яндекса (games.s3.yandex.net и
+      прочие домены *.yandex.ru/*.yandex.net) — там платформа отдаёт файл по пути
+      ./sdk.js и window.YaGames появляется до вызова YaGames.init().
+      На остальных хостингах (CrazyGames, itch, GitHub Pages, localhost) файла нет:
+      слепой запрос ловился QA-инструментом CrazyGames как «Missing resource», поэтому
+      загрузка условная, но всё ещё синхронная (document.write при парсинге head).
+      Не на Яндексе активируется LocalPlatform (заглушка).
     -->
-    <script src="./sdk.js"></script>
+    <script>
+      if (/(^|\.)(yandex\.ru|yandex\.net)$/i.test(location.hostname)) {
+        document.write('<script src="./sdk.js"><\/script>');
+      }
+    </script>
     <style>
       /* Шрифт «Мульт-поп»: субсеты с unicode-range, пути относительные (требование хостинга Яндекса) */
       @font-face {
