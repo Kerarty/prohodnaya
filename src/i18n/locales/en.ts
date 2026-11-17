@@ -39,6 +39,15 @@ export const en = {
   waitingHint: 'Open the game in a second tab',
   cancel: 'Cancel',
   duelFailed: 'Could not start the duel',
+  quickMatchBtn: 'Quick match',
+  createRoomBtn: 'Create room',
+  joinByCodeBtn: 'Join by code',
+  enterCode: 'Room code',
+  copyInvite: 'Copy invite link',
+  inviteCopied: 'Invite link copied',
+  inviteCopyFail: 'Could not copy',
+  roomNotFound: 'Room not found',
+  roomHint: 'A friend enters this code in the duel lobby',
 
   // — смена —
   shiftN: 'Shift {n}',

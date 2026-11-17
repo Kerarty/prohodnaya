@@ -6,7 +6,7 @@ import { sfx } from './systems/sfx';
 import { initLayout } from './render/layout';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
-import { MenuScene } from './scenes/MenuScene';
+import { MenuScene, queueDuelInvite } from './scenes/MenuScene';
 import { PlatformTestScene } from './scenes/PlatformTestScene';
 
 /** Phaser-текст растеризует глифы в момент создания — шрифт должен быть готов до старта сцен. */
@@ -92,6 +92,12 @@ async function bootstrap(): Promise<void> {
   const urlLang = new URLSearchParams(location.search).get('lang');
   initLocale(session().lang ?? urlLang ?? platform.getLang());
   sfx.setMuted(!session().soundOn); // настройка звука из сейва
+
+  // Приглашение в дуэль: ?duel=КОД (универсальная ссылка) или параметр
+  // запуска платформы (CrazyGames invite links) — лобби подхватит при старте
+  const urlParams = new URLSearchParams(location.search);
+  const inviteCode = urlParams.get('duel') ?? (await platform.getInviteParam?.('duel')) ?? null;
+  if (inviteCode) queueDuelInvite(inviteCode);
 
   // Последняя попытка сохранить прогресс при уходе со страницы (не гарантирована)
   window.addEventListener('pagehide', () => {

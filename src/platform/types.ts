@@ -60,4 +60,10 @@ export interface PlatformAPI {
 
   /** Пауза извне (реклама, сворачивание) — игра глушит звук и таймеры. */
   onStateChanged(cb: () => void): void;
+
+  /** Параметр запуска-приглашения (CrazyGames invite links); иначе null. */
+  getInviteParam?(key: string): string | null;
+
+  /** Ссылка-приглашение с параметром для друга (CrazyGames); иначе null. */
+  createInviteLink?(code: string): Promise<string | null>;
 }

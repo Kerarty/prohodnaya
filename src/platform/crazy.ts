@@ -19,6 +19,10 @@ interface CrazySdk {
     gameplayStart(): void;
     gameplayStop(): void;
     happytime(): void;
+    /** Ссылка-приглашение: параметры попадают в запуск игры у друга. */
+    inviteLink(params: Record<string, string>): Promise<string>;
+    /** Чтение параметров запуска-приглашения. */
+    getInviteParam(key: string): string | null;
   };
   ad: {
     requestAd(type: 'midgame' | 'rewarded', callbacks: {
@@ -158,6 +162,22 @@ export class CrazyPlatform extends LocalPlatform {
       /* 'disabled'-режим: user-модуль недоступен */
     }
     return navigator.language?.slice(0, 2) ?? 'en';
+  }
+
+  getInviteParam(key: string): string | null {
+    try {
+      return this.sdk?.game.getInviteParam?.(key) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async createInviteLink(code: string): Promise<string | null> {
+    try {
+      return (await this.sdk?.game.inviteLink({ duel: code })) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async save(data: SaveData): Promise<void> {

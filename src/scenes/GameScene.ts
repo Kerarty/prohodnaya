@@ -85,6 +85,8 @@ export interface SceneLaunchData {
   startAt?: number;
   opponentName?: string;
   botOpponent?: boolean;
+  /** Готовый API матча из лобби: P2P-сессия/бот живут в его экземпляре. */
+  api?: MatchAPI;
 }
 
 type RunMode = 'shift' | 'blitz' | 'duel';
@@ -205,8 +207,9 @@ export class GameScene extends Phaser.Scene {
       this.duelMatchId = launch.matchId ?? null;
       this.duelStartAt = launch.startAt ?? Date.now() + BALANCE.duelCountdownMs;
       this.duelOpponentName = launch.opponentName ?? t('opponentDefault');
-      // API дуэли: HTTP-клиент к бандл-серверу или бот (probe ~0.8 с)
-      void createMatchAPI().then((api) => {
+      // API дуэли из лобби (P2P-сессия живёт в его экземпляре); иначе — своя фабрика
+      if (launch.api) this.matchApi = launch.api;
+      else void createMatchAPI().then((api) => {
         this.matchApi = api;
       });
     } else if (s.currentShift) {
@@ -702,6 +705,10 @@ export class GameScene extends Phaser.Scene {
 
     if (ok) {
       this.correct += 1;
+      // Живой счёт сопернику по P2P-каналу (в блице и смене получателя нет)
+      if (this.runMode === 'duel') {
+        this.matchApi?.notifyProgress?.(this.duelMatchId ?? '', this.runScore());
+      }
       if (this.runMode === 'shift') {
         const base = correctReward(fast);
         const reward = this.isNight ? nightReward(base) : base;

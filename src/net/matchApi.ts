@@ -1,8 +1,9 @@
 /**
  * MatchAPI — сетевой слой дуэлей (план мультиплеера, фаза 2).
- * Две реализации: LocalMatchAPI (соперник-бот, без сети) и HttpMatchAPI
- * (бандл-сервер из server/index.mjs — два таба = настоящая дуэль).
- * Выбор: probe() к серверу; недоступен → бот.
+ * Три реализации: LocalMatchAPI (соперник-бот, без сети), HttpMatchAPI
+ * (бандл-сервер из server/index.mjs — если он доступен) и P2PMatchAPI
+ * (WebRTC через peerjs — основной путь реальных дуэлей без серверов).
+ * Выбор: probe() к серверу; нет сервера → P2P; P2P упал → бот.
  */
 
 import { BALANCE, duelDelta } from '../game/economy';
@@ -39,9 +40,9 @@ export interface MatchPoll {
 }
 
 export interface MatchAPI {
-  /** Бот-соперник (без сети) или живой соперник через сервер. */
+  /** Бот-соперник (без сети) или живой соперник через сервер/P2P. */
   readonly botOpponent: boolean;
-  /** HTTP-реализация проверяет доступность сервера; локальная всегда true. */
+  /** HTTP-реализация проверяет доступность сервера; P2P/локальная всегда true. */
   probe(): Promise<boolean>;
   /** Быстрый матч. matched=false — ждём соперника (поллим pollMatch). */
   quickMatch(): Promise<{ matchId: string; matched: boolean }>;
@@ -49,17 +50,34 @@ export interface MatchAPI {
   pollMatch(matchId: string): Promise<MatchPoll>;
   /** Отправить свой скор; дельта рейтинга — когда итог известен. */
   reportResult(matchId: string, score: number): Promise<MatchOutcome>;
+  /** Живой скор сопернику (P2P-канал); остальным реализациям не нужен. */
+  notifyProgress?(matchId: string, score: number): void;
+  /** Отмена поиска/матча (лобби закрыто) — P2P рвёт соединения и слоты. */
+  cancel?(matchId?: string): void;
+  /** Создать комнату с кодом (лобби «Создать комнату»); боту недоступно. */
+  createRoom?(): Promise<{ matchId: string; code: string; matched: boolean }>;
+  /** Войти в комнату по коду; ошибка — комната не найдена/занята. */
+  joinRoom?(code: string): Promise<{ matchId: string; matched: boolean }>;
 }
 
 /** Личность игрока: id на вкладку (для локальных дуэлей) и отображаемое имя. */
 export function getPlayerIdentity(): { playerId: string; name: string } {
-  let pid = sessionStorage.getItem('prohodnaya.pid');
+  let pid: string | null = null;
+  try {
+    pid = sessionStorage.getItem('prohodnaya.pid');
+  } catch {
+    /* node-тесты / приватный режим — id без хранилища */
+  }
   if (!pid) {
     pid = Math.floor(Math.random() * 1679616)
       .toString(36)
       .padStart(4, '0')
       .toUpperCase();
-    sessionStorage.setItem('prohodnaya.pid', pid);
+    try {
+      sessionStorage.setItem('prohodnaya.pid', pid);
+    } catch {
+      /* см. выше */
+    }
   }
   return { playerId: `tab-${pid}`, name: `Дежурный-${pid}` };
 }
@@ -70,12 +88,18 @@ export function matchServerUrl(): string {
   return fromQuery ?? localStorage.getItem('matchServerUrl') ?? 'http://localhost:8787';
 }
 
-/** Фабрика: сервер доступен → HTTP-дуэли, нет → бот. */
+/** Фабрика: сервер доступен → HTTP-дуэли; нет → P2P (WebRTC); P2P упал → бот. */
 export async function createMatchAPI(): Promise<MatchAPI> {
   const { playerId, name } = getPlayerIdentity();
   const http = new HttpMatchAPI(matchServerUrl(), playerId, name);
   if (await http.probe()) return http;
-  return new LocalMatchAPI();
+  try {
+    const { P2PMatchAPI, defaultPeerFactory } = await import('./p2p');
+    return new P2PMatchAPI(defaultPeerFactory);
+  } catch (e) {
+    console.warn('[net] P2P недоступен, дуэли с ботом', e);
+    return new LocalMatchAPI();
+  }
 }
 
 interface LocalMatch {

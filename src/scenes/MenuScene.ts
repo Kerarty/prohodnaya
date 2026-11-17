@@ -8,12 +8,24 @@ import { applyCamera, OVERLAY, screenCenter, DESIGN_CX, DESIGN_W } from '../rend
 import { bulbWave } from '../render/juice';
 import { FONT, INK_HEX, THEME } from '../render/theme';
 import { sfx } from '../systems/sfx';
-import { createMatchAPI, type MatchAPI } from '../net/matchApi';
+import { createMatchAPI, LocalMatchAPI, type MatchAPI } from '../net/matchApi';
+import { isP2PNoSlotsError } from '../net/p2p';
 import { queueLaunch } from './GameScene';
 import { makeButton } from '../ui/button';
+import { promptCode } from '../ui/lobbyUi';
 import { t } from '../i18n';
 import { rankTitle } from '../i18n/labels';
 import { makeLangButton } from '../ui/langPicker';
+
+/**
+ * Приглашение в дуэль, пришедшее при запуске (ссылка ?duel=КОД или
+ * invite-параметр платформы) — подхватывается лобби при создании сцены.
+ */
+let pendingInvite: string | null = null;
+
+export function queueDuelInvite(code: string | null): void {
+  pendingInvite = code?.trim().toUpperCase() || null;
+}
 
 /**
  * Кабинет «Мульт-поп» (ГДД разд. 5–6 + план мультиплеера): вывеска-логотип,
@@ -26,6 +38,8 @@ export class MenuScene extends Phaser.Scene {
   private waitingEvent: Phaser.Time.TimerEvent | null = null;
   private waitingCancelled = false;
   private waitingMatchId: string | null = null;
+  private waitingApi: MatchAPI | null = null;
+  private lobbyUi: Phaser.GameObjects.Container | null = null;
   private settingsUi: Phaser.GameObjects.Container | null = null;
   private resetArmed = false;
 
@@ -317,6 +331,13 @@ export class MenuScene extends Phaser.Scene {
         ease: 'Back.easeOut',
       });
     });
+
+    // Приглашение по ссылке/платформенному параметру — сразу в дуэль
+    if (pendingInvite) {
+      const code = pendingInvite;
+      pendingInvite = null;
+      void this.joinRoomByCode(code);
+    }
   }
 
   private buy(tool: 'lens' | 'detector'): void {
@@ -356,12 +377,104 @@ export class MenuScene extends Phaser.Scene {
     this.scene.start('Game', { blitz: true });
   }
 
-  /** Дуэль: сервер (два таба) или соперник-бот (план мультиплеера, фаза 2). */
-  private async startDuel(): Promise<void> {
+  /** Кнопка ДУЭЛЬ: лобби с тремя путями — быстрый матч, комната, код. */
+  private startDuel(): void {
+    if (this.waitingUi || this.lobbyUi) return;
+    this.showLobby();
+  }
+
+  /** Лобби дуэли: быстрый матч / создать комнату / войти по коду. */
+  private showLobby(): void {
+    const dim = this.add
+      .rectangle(0, 0, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive()
+      .setDepth(20);
+    dim.on('pointerdown', () => this.closeLobby());
+    const plate = this.add.graphics().setDepth(20);
+    plate.fillStyle(THEME.PAPER, 1);
+    plate.fillRoundedRect(-210, -200, 420, 400, 18);
+    plate.lineStyle(4, THEME.INK, 1);
+    plate.strokeRoundedRect(-210, -200, 420, 400, 18);
+    plate.fillStyle(THEME.PANEL, 1);
+    plate.fillRoundedRect(-130, -186, 260, 44, 12);
+    plate.lineStyle(3, THEME.INK, 1);
+    plate.strokeRoundedRect(-130, -186, 260, 44, 12);
+
+    const title = this.add
+      .text(0, -164, t('duelName'), { fontFamily: FONT, fontSize: '24px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setDepth(20)
+      .setStroke(INK_HEX, 3);
+
+    const quick = makeButton(this, 0, -100, t('quickMatchBtn'), () => {
+      this.closeLobby();
+      void this.startQuickMatch();
+    }, { color: THEME.ACCENT, width: 360, height: 72, fontSize: 24 });
+    const create = makeButton(this, 0, -16, t('createRoomBtn'), () => {
+      this.closeLobby();
+      void this.startRoomHost();
+    }, { color: THEME.ACCENT, width: 360, height: 72, fontSize: 24 });
+    const join = makeButton(this, 0, 68, t('joinByCodeBtn'), () => {
+      this.closeLobby();
+      this.promptJoinCode();
+    }, { color: THEME.ACCENT, width: 360, height: 72, fontSize: 24 });
+    const back = makeButton(this, 0, 152, t('cancel'), () => this.closeLobby(), {
+      secondary: true,
+      width: 260,
+      height: 64,
+      fontSize: 22,
+    });
+
+    this.lobbyUi = this.add
+      .container(DESIGN_CX, screenCenter().y, [dim, plate, title, quick, create, join, back])
+      .setDepth(20);
+  }
+
+  private closeLobby(): void {
+    this.lobbyUi?.destroy();
+    this.lobbyUi = null;
+    sfx.tap();
+  }
+
+  /** Тост-подсказка поверх кабинета (как в GameScene). */
+  private toast(text: string): void {
+    const toast = this.add
+      .text(DESIGN_CX, screenCenter().y, text, {
+        fontFamily: FONT,
+        fontSize: '22px',
+        color: INK_HEX,
+        backgroundColor: '#ffffff',
+        padding: { x: 16, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setDepth(30);
+    this.tweens.add({ targets: toast, alpha: 0, delay: 1600, duration: 300, onComplete: () => toast.destroy() });
+  }
+
+  /** Пригласительная ссылка: платформенная (CrazyGames) или универсальная ?duel=КОД. */
+  private async copyInvite(code: string): Promise<void> {
+    const universal = `${location.origin}${location.pathname}?duel=${code}`;
+    let link: string | null = universal;
+    try {
+      link = (await getPlatform().createInviteLink?.(code)) ?? universal;
+    } catch {
+      link = universal;
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      this.toast(t('inviteCopied'));
+    } catch {
+      this.toast(t('inviteCopyFail'));
+    }
+  }
+
+  /** Быстрый матч: P2P-хабы → нет слотов → бот (дуэль всегда даёт игру). */
+  private async startQuickMatch(): Promise<void> {
     if (this.waitingUi) return;
     this.showWaiting();
     try {
       const api = await createMatchAPI();
+      this.waitingApi = api;
       const quick = await api.quickMatch();
       this.waitingMatchId = quick.matchId;
       if (quick.matched) {
@@ -379,6 +492,50 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
+  /** Создать комнату: показываем код + копию ссылки, ждём гостя. */
+  private async startRoomHost(): Promise<void> {
+    if (this.waitingUi) return;
+    try {
+      const api = await createMatchAPI();
+      if (!api.createRoom) throw new Error('rooms-unsupported');
+      this.waitingApi = api;
+      const room = await api.createRoom();
+      this.waitingMatchId = room.matchId;
+      this.showWaiting(room.code);
+      this.waitingEvent = this.time.addEvent({
+        delay: 2000,
+        loop: true,
+        callback: () => void this.pollWaiting(api),
+      });
+    } catch {
+      this.toast(t('duelFailed'));
+    }
+  }
+
+  /** Ввод кода комнаты — нативный оверлей (мобильная клавиатура). */
+  private promptJoinCode(): void {
+    promptCode(
+      this,
+      (code) => void this.joinRoomByCode(code),
+      () => sfx.tap(),
+    );
+  }
+
+  /** Войти в комнату по коду (кнопка лобби или приглашение по ссылке). */
+  private async joinRoomByCode(code: string): Promise<void> {
+    if (this.waitingUi) return;
+    this.showWaiting();
+    try {
+      const api = await createMatchAPI();
+      if (!api.joinRoom) throw new Error('rooms-unsupported');
+      this.waitingApi = api;
+      const room = await api.joinRoom(code);
+      this.waitingMatchId = room.matchId;
+      await this.enterDuel(api);
+    } catch {
+      this.hideWaiting(t('roomNotFound'));
+    }
+  }
 
   private async pollWaiting(api: MatchAPI): Promise<void> {
     if (this.waitingCancelled || !this.waitingMatchId) return;
@@ -394,10 +551,18 @@ export class MenuScene extends Phaser.Scene {
           startAt: poll.startAt ?? Date.now() + BALANCE.duelCountdownMs,
           opponentName: poll.opponentName ?? t('opponentDefault'),
           botOpponent: api.botOpponent,
+          api,
         });
         this.scene.start('Game');
       }
-    } catch {
+    } catch (e) {
+      if (isP2PNoSlotsError(e)) {
+        // Все P2P-хабы заняты дуэлями — дуэль всегда даёт игру: бот
+        this.cleanupWaiting();
+        this.waitingApi = new LocalMatchAPI();
+        await this.startQuickMatch();
+        return;
+      }
       // сетевая ошибка — следующий тик
     }
   }
@@ -415,6 +580,7 @@ export class MenuScene extends Phaser.Scene {
       startAt: poll.startAt ?? Date.now() + BALANCE.duelCountdownMs,
       opponentName: poll.opponentName ?? t('opponentDefault'),
       botOpponent: api.botOpponent,
+      api,
     });
     this.scene.start('Game');
   }
@@ -504,30 +670,47 @@ export class MenuScene extends Phaser.Scene {
     sfx.tap();
   }
 
-  private showWaiting(): void {
+  /** Панель ожидания; с кодом комнаты — крупный код + копия пригласительной ссылки. */
+  private showWaiting(code?: string): void {
     // dim в локальных координатах контейнера — больше видимой области любого аспекта
     const dim = this.add
       .rectangle(0, 0, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
       .setInteractive()
       .setDepth(20);
     const plate = this.add.graphics().setDepth(20);
+    const hasCode = code !== undefined;
+    const half = hasCode ? 160 : 110;
     plate.fillStyle(THEME.PAPER, 1);
-    plate.fillRoundedRect(-180, -110, 360, 220, 18);
+    plate.fillRoundedRect(-210, -half, 420, half * 2, 18);
     plate.lineStyle(4, THEME.INK, 1);
-    plate.strokeRoundedRect(-180, -110, 360, 220, 18);
+    plate.strokeRoundedRect(-210, -half, 420, half * 2, 18);
     this.waitingUi = this.add.container(DESIGN_CX, screenCenter().y, [dim, plate]).setDepth(20);
     this.waitingUi.add(
       this.add
-        .text(0, -60, t('waitingOpponent'), { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
+        .text(0, -half + 44, t('waitingOpponent'), { fontFamily: FONT, fontSize: '24px', color: INK_HEX, fontStyle: 'bold' })
         .setOrigin(0.5),
     );
     this.waitingUi.add(
       this.add
-        .text(0, -20, t('waitingHint'), { fontFamily: FONT, fontSize: '15px', color: INK_HEX })
+        .text(0, -half + 84, hasCode ? t('roomHint') : t('waitingHint'), { fontFamily: FONT, fontSize: '15px', color: INK_HEX, wordWrap: { width: 380 }, align: 'center' })
         .setOrigin(0.5)
         .setAlpha(0.75),
     );
-    const cancel = makeButton(this, 0, 55, t('cancel'), () => this.cancelWaiting(), {
+    if (hasCode && code) {
+      this.waitingUi.add(
+        this.add
+          .text(0, -10, code, { fontFamily: FONT, fontSize: '44px', color: INK_HEX, fontStyle: 'bold', letterSpacing: 6 })
+          .setOrigin(0.5),
+      );
+      const copy = makeButton(this, 0, 62, t('copyInvite'), () => void this.copyInvite(code), {
+        color: THEME.PANEL,
+        width: 320,
+        height: 60,
+        fontSize: 20,
+      });
+      this.waitingUi.add(copy);
+    }
+    const cancel = makeButton(this, 0, hasCode ? 136 : 55, t('cancel'), () => this.cancelWaiting(), {
       secondary: true,
       width: 260,
       height: 64,
@@ -542,10 +725,13 @@ export class MenuScene extends Phaser.Scene {
     this.waitingEvent = null;
     this.waitingUi?.destroy();
     this.waitingUi = null;
+    this.waitingApi = null;
   }
 
   private cancelWaiting(): void {
     this.waitingCancelled = true;
+    // P2P: рвём соединения и освобождаем хаб-слот, чтобы другие находились
+    this.waitingApi?.cancel?.(this.waitingMatchId ?? undefined);
     this.cleanupWaiting();
     sfx.tap();
   }
