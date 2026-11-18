@@ -5,6 +5,7 @@ import { dateKey } from '../game/save';
 import { flushSession, session, sessionRank, sessionToday } from '../game/session';
 import { drawBooth } from '../render/booth';
 import { applyCamera, OVERLAY, screenCenter, DESIGN_CX, DESIGN_W } from '../render/layout';
+import { fadeIn, fadeToScene } from '../render/transition';
 import { bulbWave } from '../render/juice';
 import { FONT, INK_HEX, THEME } from '../render/theme';
 import { sfx } from '../systems/sfx';
@@ -51,6 +52,7 @@ export class MenuScene extends Phaser.Scene {
   create(): void {
     // Адаптивный вьюпорт: зум камеры под фактический размер окна (layout.ts)
     applyCamera(this);
+    fadeIn(this);
     const width = DESIGN_W; // сцены живут в дизайн-координатах 720×1280
     const s = session();
     const rank = sessionRank();
@@ -66,11 +68,34 @@ export class MenuScene extends Phaser.Scene {
     }
 
     drawBooth(this, 'menu');
+    sfx.startMusic('menu');
+
+    // Меню дышит: дрейф декоративных облаков по стене (арт-директор №6)
+    const driftCloud = (cx: number, cy: number, k: number, dur: number): void => {
+      const g = this.add.graphics().setDepth(-9);
+      g.fillStyle(THEME.CLOUD, 0.75);
+      g.fillCircle(0, 0, 26 * k);
+      g.fillCircle(-32 * k, 7 * k, 18 * k);
+      g.fillCircle(32 * k, 7 * k, 18 * k);
+      g.fillEllipse(0, 10 * k, 84 * k, 26 * k);
+      g.setPosition(cx, cy);
+      this.tweens.add({
+        targets: g,
+        x: cx + 14,
+        duration: dur,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    };
+    driftCloud(140, 300, 1, 8000);
+    driftCloud(590, 430, 0.8, 6300);
+    driftCloud(370, 210, 0.6, 9500);
 
     // Смена языка — правый верхний угол (рядом с кнопкой «Меню» в смене)
     makeLangButton(this, width - 48, 44);
 
-    // Логотип-вывеска с лампочками (спека §4.6)
+    // Логотип-вывеска с лампочками (спека §4.6) — bounce-in входа
     const logo = this.add.graphics();
     logo.fillStyle(THEME.INK, THEME.SHADOW_A);
     logo.fillRoundedRect(120, 101, 480, 110, 20);
@@ -78,7 +103,9 @@ export class MenuScene extends Phaser.Scene {
     logo.fillRoundedRect(120, 95, 480, 110, 20);
     logo.lineStyle(5, THEME.INK, 1);
     logo.strokeRoundedRect(120, 95, 480, 110, 20);
-    this.add
+    logo.setAlpha(0);
+    this.tweens.add({ targets: logo, alpha: 1, duration: 180 });
+    const logoText = this.add
       .text(width / 2, 150, t('appName'), {
         fontFamily: FONT,
         fontSize: '56px',
@@ -87,6 +114,8 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setStroke(INK_HEX, 4);
+    logoText.setScale(0);
+    this.tweens.add({ targets: logoText, scale: 1, duration: 400, delay: 120, ease: 'Back.easeOut' });
     for (let i = 0; i < 5; i++) {
       const x = 150 + i * 105;
       this.bulbs.push(this.add.circle(x, 101, 6, THEME.GOLD).setAlpha(THEME.BULB_OFF_A));
@@ -163,6 +192,15 @@ export class MenuScene extends Phaser.Scene {
     coin.strokeCircle(0, 0, 15);
     coin.fillStyle(0xffffff, 0.5);
     coin.fillCircle(-7, -8, 5);
+    // пульс монеты — «жетоны живые» (арт-директор №6)
+    this.tweens.add({
+      targets: coin,
+      scale: { from: 1, to: 1.08 },
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
 
     const mp = s.mp;
     this.add
@@ -190,7 +228,7 @@ export class MenuScene extends Phaser.Scene {
       {
         alpha: 1,
         make: () =>
-          makeButton(this, width / 2, 500, shiftLabel, () => this.scene.start('Game'), {
+          makeButton(this, width / 2, 500, shiftLabel, () => fadeToScene(this, 'Game'), {
             color: THEME.ACCENT,
             width: 380,
           }),
@@ -267,6 +305,7 @@ export class MenuScene extends Phaser.Scene {
             width: 186,
             height: 72,
             fontSize: 18,
+            subtitle: t('lensHint'),
           }),
       },
       {
@@ -278,7 +317,7 @@ export class MenuScene extends Phaser.Scene {
             924,
             t('detectorBuy', { p: BALANCE.detectorPrice }),
             () => this.buy('detector'),
-            { secondary: true, width: 186, height: 72, fontSize: 18 },
+            { secondary: true, width: 186, height: 72, fontSize: 18, subtitle: t('detectorHint') },
           ),
       },
     ];
@@ -372,7 +411,7 @@ export class MenuScene extends Phaser.Scene {
     else s.tools.detector = true;
     void flushSession();
     sfx.purchase();
-    this.scene.restart();
+    fadeToScene(this, 'Menu');
   }
 
   private startDaily(): void {
@@ -381,7 +420,7 @@ export class MenuScene extends Phaser.Scene {
     // Флаг ставится при старте: перезапуск дня ради лучшего сида — чит (ГДД разд. 6)
     s.dailyPlayed = dateKey();
     void flushSession();
-    this.scene.start('Game', { daily: true });
+    fadeToScene(this, 'Game', { daily: true });
   }
 
   private startNight(): void {
@@ -390,12 +429,12 @@ export class MenuScene extends Phaser.Scene {
     // Аналогично дневной: попытка тратится при старте
     s.nightPlayed = dateKey();
     void flushSession();
-    this.scene.start('Game', { night: true });
+    fadeToScene(this, 'Game', { night: true });
   }
 
   /** Блиц: забег на 90 с без сервера (план мультиплеера, фаза 1). */
   private startBlitz(): void {
-    this.scene.start('Game', { blitz: true });
+    fadeToScene(this, 'Game', { blitz: true });
   }
 
   /** Кнопка ДУЭЛЬ: лобби с тремя путями — быстрый матч, комната, код. */
@@ -580,7 +619,7 @@ export class MenuScene extends Phaser.Scene {
           botOpponent: api.botOpponent,
           api,
         });
-        this.scene.start('Game');
+        fadeToScene(this, 'Game');
       }
     } catch (e) {
       if (isP2PNoSlotsError(e)) {

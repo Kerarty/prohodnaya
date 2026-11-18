@@ -81,6 +81,10 @@ export function makeButton(
     scene.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 90, ease: 'Back.easeOut' });
   };
 
+  rect.on('pointerover', () => {
+    // hover-подсказка для десктопа (CG-ревьюер играет мышью); на таче сливается с squash
+    scene.tweens.add({ targets: container, scale: 1.04, duration: 120, ease: 'Quad.easeOut' });
+  });
   rect.on('pointerdown', () => {
     container.setScale(1.08, 0.9); // squash: пружинит, а не сжимается
     sfx.tap();

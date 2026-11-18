@@ -39,6 +39,7 @@ import { bulbWave, confetti, spawnThought } from '../render/juice';
 import { PassCard } from '../render/passCard';
 import { drawRuleBoard } from '../render/ruleBoard';
 import { drawHardShadow, FONT, INK_HEX, THEME } from '../render/theme';
+import { fadeIn, fadeToScene } from '../render/transition';
 import { t } from '../i18n';
 import { sfx } from '../systems/sfx';
 import { makeButton } from '../ui/button';
@@ -58,8 +59,23 @@ const TOOL_Y = 965; // основная линия инструментов — 
 const TOOL_X_OFF = 105; // отступ от правого края: левый край кнопок правее угла карты (510)
 const TOOL_LUPA_Y = 895; // Лупа над детектором, когда куплены оба
 const BTN_Y = 1150;
+const PIPELINE_Y = 1044; // точки очереди под полосой терпения
 const PATIENCE_MS = BALANCE.patienceMs;
 const MAX_ERRORS = BALANCE.maxErrors;
+
+/** Линейная интерполяция 0xRRGGBB — для «палитры угрозы» терпения-бара. */
+function lerpColor(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 255;
+  const ag = (a >> 8) & 255;
+  const ab = a & 255;
+  const br = (b >> 16) & 255;
+  const bg = (b >> 8) & 255;
+  const bb = b & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (g << 8) | bl;
+}
 
 /** Счётчик запусков для смешивания сидов (ГДД разд. 3.3). */
 let launchCounter = 0;
@@ -140,6 +156,13 @@ export class GameScene extends Phaser.Scene {
   private boothView: BoothView | null = null;
   private signBulbs: Phaser.GameObjects.Arc[] = [];
   private boardView: { board: Phaser.GameObjects.Container; pulse(): void } | null = null;
+  // Пайплайн смены (UX-директор №4): цель видна точками, ошибки — красными слотами
+  private pipelineDots: Phaser.GameObjects.Arc[] = [];
+  private mistakeSlots: Phaser.GameObjects.Arc[] = [];
+  private pipelineRing: Phaser.GameObjects.Arc | null = null;
+  /** Маршрут первого гостя показан — не повторяется до перезагрузки страницы. */
+  private introDone = false;
+  private introUi: Phaser.GameObjects.GameObject[] = [];
   // Блиц/дуэль: глобальный таймер забега вместо терпения на заявку
   private runDuration = BALANCE.blitzDurationMs;
   private runEndAt = 0;
@@ -162,9 +185,14 @@ export class GameScene extends Phaser.Scene {
     super('Game');
   }
 
+  private onKeyLeft = (): void => this.decide('approve');
+  private onKeyRight = (): void => this.decide('reject');
+
   create(data?: SceneLaunchData): void {
     // Адаптивный вьюпорт: зум камеры под фактический размер окна (layout.ts)
     applyCamera(this);
+    fadeIn(this);
+    sfx.startMusic('shift');
     const width = DESIGN_W; // сцены живут в дизайн-координатах 720×1280
     const s = session();
     this.isDaily = false;
@@ -273,6 +301,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.boothView = drawBooth(this, 'game');
+    if (this.isNight) {
+      // ночная смена видна глазом: холодный тинт фона (арт-директор №9)
+      this.add
+        .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x2a2e6e, 0.16)
+        .setDepth(-7);
+    }
 
     this.boardView = drawRuleBoard(this, this.rules, width / 2, BOARD_CY, BOARD_W);
     this.boardView.pulse();
@@ -294,6 +328,37 @@ export class GameScene extends Phaser.Scene {
         padding: { x: 10, y: 5 },
       })
       .setOrigin(0, 0.5);
+
+    // Пайплайн смены: цель видна точками, слоты ошибок справа (UX-директор №4)
+    if (this.runMode === 'shift') {
+      const n = this.queue.length;
+      const gap = 19;
+      const startX = width / 2 - ((n - 1) * gap) / 2;
+      for (let i = 0; i < n; i++) {
+        this.pipelineDots.push(
+          this.add
+            .circle(startX + i * gap, PIPELINE_Y, 7, THEME.PAPER)
+            .setStrokeStyle(3, THEME.INK, 0.45),
+        );
+      }
+      const slotsX = startX + (n - 1) * gap + 34;
+      for (let m = 0; m < MAX_ERRORS; m++) {
+        this.mistakeSlots.push(
+          this.add
+            .circle(slotsX + m * 26, PIPELINE_Y, 8, THEME.PAPER)
+            .setStrokeStyle(3, THEME.ERROR, 0.3),
+        );
+      }
+      this.pipelineRing = this.add.circle(startX, PIPELINE_Y, 12).setStrokeStyle(3, THEME.GOLD, 0.9);
+      this.tweens.add({
+        targets: this.pipelineRing,
+        scale: { from: 1, to: 1.18 },
+        duration: 450,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
 
     if (this.runMode === 'duel') {
       this.opponentText = this.add
@@ -336,6 +401,34 @@ export class GameScene extends Phaser.Scene {
       height: 72,
       fontSize: 16,
     });
+
+    // Клавиатура для десктопа (UX-директор №5); стрелки — без конфликтов с CG.
+    // off/on как у UPDATE: рестарт сцены не пересоздаёт экземпляр — копим не копим листенеры
+    if (!this.sys.game.device.input.touch) {
+      const kb = this.input.keyboard;
+      if (kb) {
+        kb.off('keydown-LEFT', this.onKeyLeft);
+        kb.off('keydown-RIGHT', this.onKeyRight);
+        kb.on('keydown-LEFT', this.onKeyLeft);
+        kb.on('keydown-RIGHT', this.onKeyRight);
+      }
+      this.add
+        .text(width / 2 - 175, BTN_Y + 60, '←', {
+          fontFamily: FONT,
+          fontSize: '22px',
+          color: INK_HEX,
+        })
+        .setOrigin(0.5)
+        .setAlpha(0.45);
+      this.add
+        .text(width / 2 + 175, BTN_Y + 60, '→', {
+          fontFamily: FONT,
+          fontSize: '22px',
+          color: INK_HEX,
+        })
+        .setOrigin(0.5)
+        .setAlpha(0.45);
+    }
 
     // Блиц стартует на первом update (Clock сцены bootится после create); дуэль — по startAt
     if (this.runMode === 'duel') {
@@ -414,7 +507,7 @@ export class GameScene extends Phaser.Scene {
       void flushSession();
     }
     s.currentShift = this.runMode === 'shift' ? s.currentShift : null;
-    this.scene.start('Menu');
+    fadeToScene(this, 'Menu');
   }
 
   private startRun(): void {
@@ -551,7 +644,7 @@ export class GameScene extends Phaser.Scene {
   private exitToMenuAfterResults(): void {
     const s = session();
     if (!shouldShowInterstitial(s.ad, this.shift, Date.now())) {
-      this.scene.start('Menu');
+      fadeToScene(this, 'Menu');
       return;
     }
     s.ad.lastAdAt = Date.now();
@@ -565,7 +658,7 @@ export class GameScene extends Phaser.Scene {
       .finally(() => {
         this.hideAdOverlay();
         sfx.setMuted(!s.soundOn);
-        this.scene.start('Menu');
+        fadeToScene(this, 'Menu');
       });
   }
 
@@ -696,8 +789,75 @@ export class GameScene extends Phaser.Scene {
           getPlatform().gameplayStart();
         }
         if (this.guest) startBreathing(this.guest, GUEST_SCALE);
+        // Онбординг (UX-директор №1–2): маршрут первого гостя + idle-подсказка на подделке
+        if (this.runMode === 'shift' && this.shift === 1) {
+          if (this.index === 0 && !this.introDone) {
+            this.introDone = true;
+            this.playIntro();
+          } else if (this.index === 1 && this.queue[1]?.training) {
+            this.time.delayedCall(7000, () => {
+              if (!this.busy && this.guest) highlightField(this.guest, 'head');
+            });
+          }
+        }
       },
     });
+  }
+
+  /** Онбординг первого гостя: кольцо на госте → пульс кнопок вердикта. Чистится любым вводом. */
+  private playIntro(): void {
+    if (!this.guest) return;
+    const ring = this.add.circle(DESIGN_CX, GUEST_Y, 120).setStrokeStyle(5, THEME.GOLD, 0.9).setDepth(12);
+    this.introUi.push(ring);
+    this.tweens.add({
+      targets: ring,
+      scale: { from: 0.9, to: 1.1 },
+      alpha: { from: 0.9, to: 0.5 },
+      duration: 700,
+      yoyo: true,
+      repeat: 2,
+      onComplete: () => this.clearIntro(),
+    });
+    this.time.delayedCall(900, () => {
+      if (!this.introUi.length) return;
+      for (const btn of [this.approveBtn, this.rejectBtn]) {
+        if (!btn) continue;
+        this.tweens.add({ targets: btn, scale: { from: 1, to: 1.07 }, duration: 350, yoyo: true, repeat: 2 });
+      }
+    });
+  }
+
+  /** Убрать онбординг-оверлеи (любое решение/тайм-аут). */
+  private clearIntro(): void {
+    for (const obj of this.introUi) obj.destroy();
+    this.introUi = [];
+    if (this.approveBtn) this.tweens.killTweensOf(this.approveBtn);
+    if (this.rejectBtn) this.tweens.killTweensOf(this.rejectBtn);
+    this.approveBtn?.setScale(1);
+    this.rejectBtn?.setScale(1);
+  }
+
+  /** Камера-панч вердикта поверх существующего shake: лёгкий zoom-in/out (арт-директор №9). */
+  private punch(): void {
+    const cam = this.cameras.main;
+    cam.zoomTo(1.015, 90, 'Sine.easeInOut', true);
+    this.time.delayedCall(90, () => cam.zoomTo(1, 90, 'Sine.easeInOut', true));
+  }
+
+  /** Обновить пайплайн смены: пройденное заливаем, текущее — под золотым кольцом. */
+  private updatePipeline(): void {
+    for (let i = 0; i < this.pipelineDots.length; i++) {
+      const dot = this.pipelineDots[i];
+      if (i < this.index) dot.fillColor = dot.getData('ok') ? THEME.SUCCESS : THEME.ERROR;
+      else if (i === this.index) dot.fillColor = THEME.PAPER;
+    }
+    this.pipelineRing?.setPosition(
+      DESIGN_W / 2 - ((this.pipelineDots.length - 1) * 19) / 2 + this.index * 19,
+      PIPELINE_Y,
+    );
+    for (let m = 0; m < this.mistakeSlots.length; m++) {
+      this.mistakeSlots[m].fillColor = m < this.errors ? THEME.ERROR : THEME.PAPER;
+    }
   }
 
   /** Терпение (ГДД разд. 2) — только в обычных сменах; в блице/дуэле глобальный таймер. */
@@ -715,6 +875,20 @@ export class GameScene extends Phaser.Scene {
     this.patienceBar.scaleX = 1;
     this.patienceBar.fillColor = THEME.PANEL_DARK;
     this.tweens.add({ targets: this.patienceBar, scaleX: 0, duration: PATIENCE_MS, ease: 'Linear' });
+    // Палитра угрозы: последние 30% — GOLD→ACCENT→ERROR, читается периферией (арт-директор №8)
+    this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: PATIENCE_MS,
+      onUpdate: (tw) => {
+        const p = tw.getValue() ?? 0;
+        const bar = this.patienceBar;
+        if (!bar) return;
+        if (p < 0.7) bar.fillColor = THEME.PANEL_DARK;
+        else if (p < 0.85) bar.fillColor = lerpColor(THEME.GOLD, THEME.ACCENT, (p - 0.7) / 0.15);
+        else bar.fillColor = lerpColor(THEME.ACCENT, THEME.ERROR, (p - 0.85) / 0.15);
+      },
+    });
     this.patienceEvent = this.time.delayedCall(PATIENCE_MS, () => this.patienceExpired());
   }
 
@@ -729,6 +903,9 @@ export class GameScene extends Phaser.Scene {
     this.stopPatience();
     this.setButtonsEnabled(false);
     session().currentStreak = 0;
+    this.clearIntro();
+    this.pipelineDots[this.index]?.setData('ok', false);
+    this.updatePipeline();
     this.trackProgress();
     this.flash(THEME.NICHE_FLOOR);
     this.time.delayedCall(500, () => this.leaveGuest('timeout'));
@@ -742,6 +919,7 @@ export class GameScene extends Phaser.Scene {
     const ok = decision === app.expected;
     this.stopPatience();
     this.setButtonsEnabled(false);
+    this.clearIntro();
     this.card?.showStamp(decision === 'approve'); // штамп = решение игрока
     sfx.stamp();
 
@@ -761,15 +939,25 @@ export class GameScene extends Phaser.Scene {
         s.currentStreak += 1;
         if (s.currentStreak > s.bestStreak) s.bestStreak = s.currentStreak;
         if (this.guest) guestReact(this.guest, 'ok');
+        this.pipelineDots[this.index]?.setData('ok', true);
+        this.updatePipeline();
         this.trackProgress();
         this.time.delayedCall(300, () => {
           this.flash(THEME.SUCCESS);
+          sfx.duckMusic();
           sfx.chip();
           sfx.success();
           sfx.coin();
           confetti(this, DESIGN_CX, 480);
           bulbWave(this, this.signBulbs);
+          this.punch();
           this.floatText(t('floatPlus', { n: reward }), '#3ec46d');
+          // комбо-эскалация (гейм-дизайнер №1): серия видна и слышна, экономика не тронута
+          if (s.currentStreak >= 3) {
+            this.time.delayedCall(300, () =>
+              this.floatText(t('streakLine', { n: s.currentStreak }), '#ffc93c'),
+            );
+          }
         });
         this.time.delayedCall(800, () => this.leaveGuest('ok'));
       } else {
@@ -787,6 +975,8 @@ export class GameScene extends Phaser.Scene {
       }
     } else {
       session().currentStreak = 0;
+      this.pipelineDots[this.index]?.setData('ok', false);
+      this.updatePipeline();
       if (this.guest) {
         guestReact(this.guest, 'reject');
         guestDeflate(this.guest);
@@ -797,7 +987,9 @@ export class GameScene extends Phaser.Scene {
       }
       this.time.delayedCall(300, () => {
         this.flash(THEME.ERROR);
+        sfx.duckMusic();
         sfx.fail();
+        this.punch();
       });
       this.time.delayedCall(700, () => this.showMistake(app));
     }
@@ -881,6 +1073,7 @@ export class GameScene extends Phaser.Scene {
     const counted = !app.training;
     if (counted) this.errors += 1;
     this.updateCounter();
+    this.updatePipeline();
     if (counted && this.guest) spawnThought(this, this.guest);
 
     const dim = this.add
@@ -1035,40 +1228,70 @@ export class GameScene extends Phaser.Scene {
     this.add
       .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
       .setInteractive();
+
+    // Панель-контейнер: единый pop-in (арт-директор №2)
+    const panel = this.add.container(width / 2, cy).setScale(0.85).setAlpha(0);
+    this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 280, ease: 'Back.easeOut' });
+
     const g = this.add.graphics();
-    drawHardShadow(g, width / 2 - 290, cy - 200, 580, 400, 18);
+    drawHardShadow(g, -290, -200, 580, 400, 18);
     g.fillStyle(THEME.PAPER, 1);
-    g.fillRoundedRect(width / 2 - 290, cy - 200, 580, 400, 18);
+    g.fillRoundedRect(-290, -200, 580, 400, 18);
     g.lineStyle(5, THEME.INK, 1);
-    g.strokeRoundedRect(width / 2 - 290, cy - 200, 580, 400, 18);
+    g.strokeRoundedRect(-290, -200, 580, 400, 18);
     g.fillStyle(THEME.ERROR, 1);
-    g.fillRoundedRect(width / 2 - 165, cy - 188, 330, 46, 12);
+    g.fillRoundedRect(-165, -188, 330, 46, 12);
     g.lineStyle(3, THEME.INK, 1);
-    g.strokeRoundedRect(width / 2 - 165, cy - 188, 330, 46, 12);
-    this.add
-      .text(width / 2, cy - 165, t('interrupted'), {
-        fontFamily: FONT,
-        fontSize: '28px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setStroke(INK_HEX, 3);
-    this.add
-      .text(width / 2, cy - 80, t('interruptedErrors', { e: Math.min(this.errors, MAX_ERRORS), m: MAX_ERRORS }), {
-        fontFamily: FONT,
-        fontSize: '26px',
-        color: INK_HEX,
-      })
-      .setOrigin(0.5);
-    this.add
-      .text(width / 2, cy - 30, t('rewardsLine', { t: this.earnedTokens, x: this.earnedXp }), {
-        fontFamily: FONT,
-        fontSize: '24px',
-        color: INK_HEX,
-      })
-      .setOrigin(0.5);
-    makeButton(this, width / 2, cy + 50, t('newShift'), () => this.scene.restart(), {
+    g.strokeRoundedRect(-165, -188, 330, 46, 12);
+    panel.add(g);
+    panel.add(
+      this.add
+        .text(0, -165, t('interrupted'), {
+          fontFamily: FONT,
+          fontSize: '28px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setStroke(INK_HEX, 3),
+    );
+
+    // 3/3 — штампуем ошибки прямо на панели (UX-директор №8)
+    for (let m = 0; m < MAX_ERRORS; m++) {
+      const xg = this.add.graphics();
+      xg.lineStyle(6, THEME.ERROR, 1);
+      xg.lineBetween(-16, -16, 16, 16);
+      xg.lineBetween(-16, 16, 16, -16);
+      const slot = this.add.container(-120 + m * 110, -112, [xg]).setScale(0);
+      panel.add(slot);
+      this.tweens.add({
+        targets: slot,
+        scale: 1,
+        duration: 220,
+        delay: 350 + m * 140,
+        ease: 'Back.easeOut',
+      });
+    }
+
+    panel.add(
+      this.add
+        .text(0, -75, t('interruptedErrors', { e: Math.min(this.errors, MAX_ERRORS), m: MAX_ERRORS }), {
+          fontFamily: FONT,
+          fontSize: '26px',
+          color: INK_HEX,
+        })
+        .setOrigin(0.5),
+    );
+    panel.add(
+      this.add
+        .text(0, -30, t('rewardsLine', { t: this.earnedTokens, x: this.earnedXp }), {
+          fontFamily: FONT,
+          fontSize: '24px',
+          color: INK_HEX,
+        })
+        .setOrigin(0.5),
+    );
+    makeButton(this, width / 2, cy + 50, t('newShift'), () => fadeToScene(this, 'Game'), {
       color: THEME.SUCCESS,
       width: 320,
     });
@@ -1110,67 +1333,125 @@ export class GameScene extends Phaser.Scene {
     this.add
       .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
       .setInteractive();
+
+    // Панель-контейнер: единый pop-in + звёзды чистоты (арт-директор №2, UX №6)
+    const panel = this.add.container(width / 2, cy).setScale(0.85).setAlpha(0);
+    this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 280, ease: 'Back.easeOut' });
+
     const g = this.add.graphics();
-    drawHardShadow(g, 60, cy - 360, 600, 720, 24);
+    drawHardShadow(g, -300, -360, 600, 720, 24);
     g.fillStyle(THEME.PAPER, 1);
-    g.fillRoundedRect(60, cy - 360, 600, 720, 24);
+    g.fillRoundedRect(-300, -360, 600, 720, 24);
     g.lineStyle(5, THEME.INK, 1);
-    g.strokeRoundedRect(60, cy - 360, 600, 720, 24);
+    g.strokeRoundedRect(-300, -360, 600, 720, 24);
     g.fillStyle(THEME.ACCENT, 1);
-    g.fillRoundedRect(width / 2 - 210, cy - 335, 420, 56, 14);
+    g.fillRoundedRect(-210, -335, 420, 56, 14);
     g.lineStyle(3, THEME.INK, 1);
-    g.strokeRoundedRect(width / 2 - 210, cy - 335, 420, 56, 14);
-    this.add
-      .text(width / 2, cy - 307, title, {
-        fontFamily: FONT,
-        fontSize: '28px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-        wordWrap: { width: 400 },
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setStroke(INK_HEX, 3);
-    this.add
-      .text(
-        width / 2,
-        cy - 230,
-        t('doneStats', { c: this.correct, n: this.queue.length, e: Math.min(this.errors, MAX_ERRORS) }),
-        {
+    g.strokeRoundedRect(-210, -335, 420, 56, 14);
+    panel.add(g);
+    panel.add(
+      this.add
+        .text(0, -307, title, {
           fontFamily: FONT,
-          fontSize: '26px',
-          color: INK_HEX,
-        },
-      )
-      .setOrigin(0.5);
+          fontSize: '28px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+          wordWrap: { width: 400 },
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setStroke(INK_HEX, 3),
+    );
+    panel.add(
+      this.add
+        .text(
+          0,
+          -230,
+          t('doneStats', { c: this.correct, n: this.queue.length, e: Math.min(this.errors, MAX_ERRORS) }),
+          {
+            fontFamily: FONT,
+            fontSize: '26px',
+            color: INK_HEX,
+          },
+        )
+        .setOrigin(0.5),
+    );
     this.rewardText = this.add
-      .text(width / 2, cy - 180, t('rewardsLine', { t: this.finishTokenTotal, x: this.finishXpTotal }), {
+      .text(0, -180, t('rewardsLine', { t: 0, x: this.finishXpTotal }), {
         fontFamily: FONT,
         fontSize: '27px',
         color: INK_HEX,
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
+    panel.add(this.rewardText);
+    // Count-up награды: цифры «доплачиваются» на глазах (арт-директор №2)
+    const countUp = { v: 0 };
+    this.tweens.add({
+      targets: countUp,
+      v: this.finishTokenTotal,
+      duration: 700,
+      delay: 250,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => {
+        this.rewardText?.setText(t('rewardsLine', { t: Math.round(countUp.v), x: this.finishXpTotal }));
+      },
+    });
+    if (clean) {
+      panel.add(
+        this.add
+          .text(215, -180, t('bonusChip'), {
+            fontFamily: FONT,
+            fontSize: '18px',
+            color: '#ffffff',
+            fontStyle: 'bold',
+            backgroundColor: '#3ec46d',
+            padding: { x: 8, y: 4 },
+          })
+          .setOrigin(0.5),
+      );
+    }
     if (this.isDaily) {
-      this.add
-        .text(width / 2, cy - 130, t('dailyScoreLine', { s: dailyScore(this.correct, this.fastCount, this.errors) }), {
-          fontFamily: FONT,
-          fontSize: '22px',
-          color: INK_HEX,
-        })
-        .setOrigin(0.5);
+      panel.add(
+        this.add
+          .text(0, -130, t('dailyScoreLine', { s: dailyScore(this.correct, this.fastCount, this.errors) }), {
+            fontFamily: FONT,
+            fontSize: '22px',
+            color: INK_HEX,
+          })
+          .setOrigin(0.5),
+      );
     }
     if (rankAfter.index > this.rankIndexStart) {
-      this.add
-        .text(width / 2, cy - 80, t('newRank', { r: rankAfter.title }), {
-          fontFamily: FONT,
-          fontSize: '27px',
-          color: '#2f9e5f',
-          fontStyle: 'bold',
-        })
-        .setOrigin(0.5);
+      panel.add(
+        this.add
+          .text(0, -80, t('newRank', { r: rankAfter.title }), {
+            fontFamily: FONT,
+            fontSize: '27px',
+            color: '#2f9e5f',
+            fontStyle: 'bold',
+          })
+          .setOrigin(0.5),
+      );
       // Новое звание — праздник достижений на CrazyGames
       getPlatform().happytime();
+    }
+    // Звёзды чистоты: 3 при нуле ошибок, 2 при одной, 1 дальше (UX №6)
+    const starCount = this.errors === 0 ? 3 : this.errors === 1 ? 2 : 1;
+    for (let i = 0; i < 3; i++) {
+      const filled = i < starCount;
+      const star = this.add
+        .circle((i - 1) * 56, -40, 16, filled ? THEME.GOLD : THEME.NICHE)
+        .setStrokeStyle(4, THEME.INK, 1);
+      star.setScale(0);
+      panel.add(star);
+      this.tweens.add({
+        targets: star,
+        scale: 1,
+        duration: 240,
+        delay: 420 + i * 150,
+        ease: 'Back.easeOut',
+      });
     }
 
     // Без строк скор/звание середина панели остаётся пустой — поднимаю блок кнопок
@@ -1191,7 +1472,7 @@ export class GameScene extends Phaser.Scene {
     }
     const nextY = cy + (ads ? 210 : 200) - lift;
     const menuY = cy + (ads ? 305 : 295) - lift;
-    makeButton(this, width / 2, nextY, t('nextShift'), () => this.scene.restart(), {
+    makeButton(this, width / 2, nextY, t('nextShift'), () => fadeToScene(this, 'Game'), {
       color: THEME.ACCENT,
       width: 340,
     });
@@ -1320,7 +1601,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
     makeButton(this, width / 2, cy + 60, t('again'), () => {
       pendingLaunch = { blitz: true };
-      this.scene.restart();
+      fadeToScene(this, 'Game');
     }, { color: THEME.ACCENT, width: 340 });
     makeButton(this, width / 2, cy + 152, t('toMenu'), () => this.exitToMenuAfterResults(), {
       secondary: true,
@@ -1377,7 +1658,7 @@ export class GameScene extends Phaser.Scene {
           padding: { x: 16, y: 8 },
         })
         .setOrigin(0.5);
-      makeButton(this, width / 2, cy + 90, t('toMenu'), () => this.scene.start('Menu'), {
+      makeButton(this, width / 2, cy + 90, t('toMenu'), () => fadeToScene(this, 'Menu'), {
         secondary: true,
         width: 280,
       });
