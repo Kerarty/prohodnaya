@@ -35,7 +35,8 @@ import {
   DESIGN_CX,
   DESIGN_W,
 } from '../render/layout';
-import { bulbWave, confetti, spawnThought } from '../render/juice';
+import { bulbWave, spawnThought } from '../render/juice';
+import * as vfx from '../render/vfx';
 import { PassCard } from '../render/passCard';
 import { drawRuleBoard } from '../render/ruleBoard';
 import { drawHardShadow, FONT, INK_HEX, THEME } from '../render/theme';
@@ -307,6 +308,8 @@ export class GameScene extends Phaser.Scene {
         .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x2a2e6e, 0.16)
         .setDepth(-7);
     }
+    // Ambient-пар из чашки на стойке (VFX-слой, тех-художник)
+    vfx.steamAmbient(this, 617, 1000);
 
     this.boardView = drawRuleBoard(this, this.rules, width / 2, BOARD_CY, BOARD_W);
     this.boardView.pulse();
@@ -766,7 +769,13 @@ export class GameScene extends Phaser.Scene {
     }).setAlpha(0);
     sfx.whoosh();
 
-    this.tweens.add({ targets: this.guest, x: width / 2, duration: 260, ease: 'Quad.easeOut' });
+    this.tweens.add({
+      targets: this.guest,
+      x: width / 2,
+      duration: 260,
+      ease: 'Quad.easeOut',
+      onComplete: () => vfx.walkPuff(this, width / 2, GUEST_Y + 120 * GUEST_SCALE),
+    });
     this.tweens.add({
       targets: this.guest,
       scale: { from: 0.2, to: GUEST_SCALE },
@@ -921,6 +930,8 @@ export class GameScene extends Phaser.Scene {
     this.setButtonsEnabled(false);
     this.clearIntro();
     this.card?.showStamp(decision === 'approve'); // штамп = решение игрока
+    vfx.stampShock(this, DESIGN_CX, CARD_Y);
+    vfx.stampInk(this, DESIGN_CX, CARD_Y);
     sfx.stamp();
 
     if (ok) {
@@ -948,9 +959,10 @@ export class GameScene extends Phaser.Scene {
           sfx.chip();
           sfx.success();
           sfx.coin();
-          confetti(this, DESIGN_CX, 480);
+          vfx.confettiSalvo(this);
           bulbWave(this, this.signBulbs);
           this.punch();
+          if (fast) vfx.speedlines(this, this.guest?.x ?? DESIGN_CX, GUEST_Y);
           this.floatText(t('floatPlus', { n: reward }), '#3ec46d');
           // комбо-эскалация (гейм-дизайнер №1): серия видна и слышна, экономика не тронута
           if (s.currentStreak >= 3) {
@@ -968,7 +980,7 @@ export class GameScene extends Phaser.Scene {
           this.flash(THEME.SUCCESS);
           sfx.chip();
           sfx.success();
-          confetti(this, DESIGN_CX, 480);
+          vfx.confettiSalvo(this);
           bulbWave(this, this.signBulbs);
         });
         this.time.delayedCall(800, () => this.leaveGuest('ok'));
@@ -1337,6 +1349,7 @@ export class GameScene extends Phaser.Scene {
     // Панель-контейнер: единый pop-in + звёзды чистоты (арт-директор №2, UX №6)
     const panel = this.add.container(width / 2, cy).setScale(0.85).setAlpha(0);
     this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 280, ease: 'Back.easeOut' });
+    vfx.confettiSalvo(this);
 
     const g = this.add.graphics();
     drawHardShadow(g, -300, -360, 600, 720, 24);

@@ -101,6 +101,14 @@ export function drawBooth(scene: Phaser.Scene, mode: 'game' | 'menu'): BoothView
       g.fillRoundedRect(DESIGN_CX - 130, 1208, 260, 64, 14);
       g.lineStyle(4, THEME.INK, 1);
       g.strokeRoundedRect(DESIGN_CX - 130, 1208, 260, 64, 14);
+      // Чашка на столешнице (правый угол) — якорь ambient-пара (VFX-слой)
+      g.fillStyle(THEME.PAPER, 1);
+      g.fillRoundedRect(600, 1006, 34, 26, 4);
+      g.lineStyle(3, THEME.INK, 1);
+      g.strokeRoundedRect(600, 1006, 34, 26, 4);
+      g.beginPath();
+      g.arc(638, 1019, 10, Phaser.Math.DegToRad(-80), Phaser.Math.DegToRad(80));
+      g.strokePath();
     }
   };
 

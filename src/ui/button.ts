@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { drawHardShadow, FONT, INK_HEX, THEME } from '../render/theme';
+import { buttonPulse } from '../render/vfx';
 import { sfx } from '../systems/sfx';
 
 export interface ButtonOptions {
@@ -87,6 +88,7 @@ export function makeButton(
   });
   rect.on('pointerdown', () => {
     container.setScale(1.08, 0.9); // squash: пружинит, а не сжимается
+    buttonPulse(scene, container.x, container.y);
     sfx.tap();
   });
   rect.on('pointerout', release);

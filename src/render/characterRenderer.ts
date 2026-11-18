@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLOR_HEX } from '../game/attributes';
 import type { DocFieldId } from '../game/application';
 import type { AccessoryType, BodyForm, CharacterAttrs, EyesType, HeadForm } from '../game/attributes';
+import { outlineSpark } from './vfx';
 import { THEME } from './theme';
 
 const HEAD_CY: Record<HeadForm, number> = { circle: -70, square: -70, triangle: -52, hexagon: -70 };
@@ -221,6 +222,7 @@ export function highlightField(container: Phaser.GameObjects.Container, field: D
   const prev = container.getByName('fieldRing');
   if (prev) prev.destroy();
   if (field === 'expiry' || field === 'signature') return;
+  outlineSpark(container.scene, container);
 
   // Центр головы зависит от формы (у треугольника он выше) — кольцо должно сидеть точно
   const headCy = (container.getData('headCy') as number | undefined) ?? -70;
