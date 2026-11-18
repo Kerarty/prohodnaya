@@ -2,7 +2,8 @@
 
 export type Rng = () => number;
 
-export type RngChannel = 'queue' | 'char' | 'doc' | 'rules';
+/** Суб-потоки (план v2): 'events' — событийные слоты, 'weather' — погода окна мира. */
+export type RngChannel = 'queue' | 'char' | 'doc' | 'rules' | 'events' | 'weather';
 
 /** mulberry32 — быстрый 32-битный ГПСЧ с хорошим распределением для игр. */
 export function mulberry32(seed: number): Rng {

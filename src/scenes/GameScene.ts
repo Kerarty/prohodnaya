@@ -24,8 +24,9 @@ import {
   highlightField,
   startBreathing,
 } from '../render/characterRenderer';
-import { drawBooth } from '../render/booth';
+import { drawBooth, LIGHT_STAGES } from '../render/booth';
 import type { BoothView } from '../render/booth';
+import { createWorldWindow, type WorldWindow } from '../render/worldWindow';
 import {
   applyCamera,
   layoutOffLeft,
@@ -164,6 +165,12 @@ export class GameScene extends Phaser.Scene {
   /** Маршрут первого гостя показан — не повторяется до перезагрузки страницы. */
   private introDone = false;
   private introUi: Phaser.GameObjects.GameObject[] = [];
+  // Окно мира + VIP-церемония (план v2 А1/А2)
+  private worldWindow: WorldWindow | null = null;
+  private lightStage = 0;
+  private entourage: Phaser.GameObjects.Container[] = [];
+  private vipRibbon: Phaser.GameObjects.Container | null = null;
+  private ghostFlicker: Phaser.Tweens.Tween | null = null;
   // Блиц/дуэль: глобальный таймер забега вместо терпения на заявку
   private runDuration = BALANCE.blitzDurationMs;
   private runEndAt = 0;
@@ -310,6 +317,8 @@ export class GameScene extends Phaser.Scene {
     }
     // Ambient-пар из чашки на стойке (VFX-слой, тех-художник)
     vfx.steamAmbient(this, 617, 1000);
+    // Окно мира: погода смены из сида — у всех игроков одинаковая (план v2 А1)
+    this.worldWindow = createWorldWindow(this, this.seed);
 
     this.boardView = drawRuleBoard(this, this.rules, width / 2, BOARD_CY, BOARD_W);
     this.boardView.pulse();
@@ -748,11 +757,51 @@ export class GameScene extends Phaser.Scene {
     this.updateCounter();
     this.setButtonsEnabled(false);
     this.guest?.destroy();
+    this.entourage.forEach((e) => e.destroy());
+    this.entourage = [];
+    this.vipRibbon?.destroy();
+    this.vipRibbon = null;
     this.card?.destroy();
+
+    const guestScale = app.vip ? GUEST_SCALE * 1.15 : GUEST_SCALE;
+
+    // VIP-церемония (план v2 А2): машина замирает у окна, ковровая дорожка, волна лампочек —
+    // гость с сопровождающими входит после
+    if (app.vip) {
+      this.worldWindow?.stopCar();
+      bulbWave(this, this.signBulbs);
+      const road = this.add
+        .rectangle(width / 2 + 250, GUEST_Y + 130, width / 2 + 400, 54, THEME.ACCENT_DARK)
+        .setOrigin(1, 0.5)
+        .setDepth(-6);
+      road.setScale(0, 1);
+      this.tweens.add({ targets: road, scaleX: 1, duration: 550, ease: 'Sine.easeOut' });
+    }
 
     // Bounce-вход слева: слайд + overshoot масштаба (спека §4.3 №8).
     // На широких экранах заходим от левого края ВИДИМОЙ области, а не от −80
-    this.guest = drawCharacter(this, app.guest, layoutOffLeft(), GUEST_Y, GUEST_SCALE);
+    this.guest = drawCharacter(this, app.guest, layoutOffLeft(), GUEST_Y, guestScale);
+    // Гость-невидимка (план v2 А3): alpha-мерцание, проявляется проверкой поля
+    if (app.ghost) {
+      this.guest.setAlpha(0.22);
+      this.ghostFlicker = this.tweens.add({
+        targets: this.guest,
+        alpha: { from: 0.22, to: 0.32 },
+        duration: 500,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+    // Свита VIP: мини-гости следом (уходят вместе с гостем — leaveGuest)
+    if (app.vip) {
+      for (const [dx, dy, sc] of [
+        [-95, 24, 0.45],
+        [-160, 40, 0.4],
+      ] as const) {
+        const mini = drawCharacter(this, app.guest, layoutOffLeft() + dx, GUEST_Y + dy, sc);
+        this.entourage.push(mini);
+      }
+    }
     // Тень в нише появляется вместе с гостем и уходит с ним — не висит в пустой нише
     const guestShadow = this.boothView?.guestShadow;
     if (guestShadow) {
@@ -762,26 +811,53 @@ export class GameScene extends Phaser.Scene {
     this.card = new PassCard(this, app.doc, width / 2, CARD_Y, {
       interactiveFields: session().tools.lens,
       onFieldTap: (field: DocFieldId) => {
+        if (app.ghost) this.revealGhost();
         if (this.guest) highlightField(this.guest, field);
         this.card?.softHighlight(field);
         sfx.tap();
       },
     }).setAlpha(0);
     sfx.whoosh();
+    if (app.vip) {
+      // золотая лента VIP на пропуске (план v2 А2)
+      const ribbon = this.add.container(width / 2 + 138, CARD_Y - 108).setDepth(11);
+      const rb = this.add.graphics();
+      rb.fillStyle(THEME.GOLD, 1);
+      rb.fillRoundedRect(-52, -20, 104, 40, 8);
+      rb.lineStyle(3, THEME.INK, 1);
+      rb.strokeRoundedRect(-52, -20, 104, 40, 8);
+      ribbon.add([rb, this.add.text(0, 0, 'VIP', { fontFamily: FONT, fontSize: '22px', color: INK_HEX, fontStyle: 'bold' }).setOrigin(0.5)]);
+      ribbon.setScale(0);
+      this.tweens.add({ targets: ribbon, scale: 1, duration: 300, delay: 450, ease: 'Back.easeOut' });
+      this.vipRibbon = ribbon;
+    }
 
     this.tweens.add({
       targets: this.guest,
       x: width / 2,
       duration: 260,
       ease: 'Quad.easeOut',
-      onComplete: () => vfx.walkPuff(this, width / 2, GUEST_Y + 120 * GUEST_SCALE),
+      onComplete: () => vfx.walkPuff(this, width / 2, GUEST_Y + 120 * guestScale),
     });
     this.tweens.add({
       targets: this.guest,
-      scale: { from: 0.2, to: GUEST_SCALE },
+      scale: { from: 0.2, to: guestScale },
       duration: 320,
       ease: 'Back.easeOut',
     });
+    if (app.vip) {
+      // свита доезжает вслед за VIP
+      this.entourage.forEach((mini, i) => {
+        const targetX = width / 2 - 95 - i * 65;
+        this.tweens.add({
+          targets: mini,
+          x: targetX,
+          duration: 300,
+          delay: 120 + i * 90,
+          ease: 'Quad.easeOut',
+        });
+      });
+    }
     this.tweens.add({
       targets: this.card,
       alpha: 1,
@@ -846,6 +922,14 @@ export class GameScene extends Phaser.Scene {
     this.rejectBtn?.setScale(1);
   }
 
+  /** Проявление гостя-невидимки (план v2 А3): мерцание стоп, полный альфа. */
+  private revealGhost(): void {
+    if (!this.ghostFlicker) return;
+    this.ghostFlicker.stop();
+    this.ghostFlicker = null;
+    this.guest?.setAlpha(1);
+  }
+
   /** Камера-панч вердикта поверх существующего shake: лёгкий zoom-in/out (арт-директор №9). */
   private punch(): void {
     const cam = this.cameras.main;
@@ -867,6 +951,13 @@ export class GameScene extends Phaser.Scene {
     for (let m = 0; m < this.mistakeSlots.length; m++) {
       this.mistakeSlots[m].fillColor = m < this.errors ? THEME.ERROR : THEME.PAPER;
     }
+    // Живое освещение: стена проживает смену — 4 стадии по прогрессу (план v2 А4)
+    const total = Math.max(2, this.queue.length);
+    const stage = Math.min(3, Math.floor((this.index / (total - 1)) * 4));
+    if (stage !== this.lightStage) {
+      this.lightStage = stage;
+      this.boothView?.redraw(LIGHT_STAGES[stage]);
+    }
   }
 
   /** Терпение (ГДД разд. 2) — только в обычных сменах; в блице/дуэле глобальный таймер. */
@@ -883,12 +974,14 @@ export class GameScene extends Phaser.Scene {
     this.barFrame?.setVisible(true);
     this.patienceBar.scaleX = 1;
     this.patienceBar.fillColor = THEME.PANEL_DARK;
-    this.tweens.add({ targets: this.patienceBar, scaleX: 0, duration: PATIENCE_MS, ease: 'Linear' });
+    // Спешащий VIP: терпение ×0.5 (план v2 В4)
+    const patienceMs = Math.round(PATIENCE_MS * (this.queue[this.index]?.vip ? 0.5 : 1));
+    this.tweens.add({ targets: this.patienceBar, scaleX: 0, duration: patienceMs, ease: 'Linear' });
     // Палитра угрозы: последние 30% — GOLD→ACCENT→ERROR, читается периферией (арт-директор №8)
     this.tweens.addCounter({
       from: 0,
       to: 1,
-      duration: PATIENCE_MS,
+      duration: patienceMs,
       onUpdate: (tw) => {
         const p = tw.getValue() ?? 0;
         const bar = this.patienceBar;
@@ -898,7 +991,7 @@ export class GameScene extends Phaser.Scene {
         else bar.fillColor = lerpColor(THEME.ACCENT, THEME.ERROR, (p - 0.85) / 0.15);
       },
     });
-    this.patienceEvent = this.time.delayedCall(PATIENCE_MS, () => this.patienceExpired());
+    this.patienceEvent = this.time.delayedCall(patienceMs, () => this.patienceExpired());
   }
 
   private stopPatience(): void {
@@ -929,6 +1022,7 @@ export class GameScene extends Phaser.Scene {
     this.stopPatience();
     this.setButtonsEnabled(false);
     this.clearIntro();
+    if (app.ghost) this.revealGhost();
     this.card?.showStamp(decision === 'approve'); // штамп = решение игрока
     vfx.stampShock(this, DESIGN_CX, CARD_Y);
     vfx.stampInk(this, DESIGN_CX, CARD_Y);
@@ -942,7 +1036,8 @@ export class GameScene extends Phaser.Scene {
       }
       if (this.runMode === 'shift') {
         const base = correctReward(fast);
-        const reward = this.isNight ? nightReward(base) : base;
+        let reward = this.isNight ? nightReward(base) : base;
+        if (app.vip) reward *= 2; // спешащий VIP платит двойную (план v2 В4)
         this.earnedTokens += reward;
         this.earnedXp += BALANCE.xpPerCorrect;
         if (fast) this.fastCount += 1;
@@ -1033,6 +1128,15 @@ export class GameScene extends Phaser.Scene {
     if (guestShadow) {
       this.tweens.add({ targets: guestShadow, alpha: 0, duration: 250 });
     }
+    // Свита VIP уходит следом; окно мира возобновляет трафик (план v2 А2)
+    for (const mini of this.entourage) {
+      this.tweens.add({ targets: mini, x: offRight, duration: 450, ease: 'Quad.easeIn' });
+      this.time.delayedCall(500, () => mini.destroy());
+    }
+    this.entourage = [];
+    this.vipRibbon?.destroy();
+    this.vipRibbon = null;
+    this.worldWindow?.resumeCar();
     if (this.guest) {
       if (kind === 'reject') {
         // «Сдувание» уже сыграло — держим грусть, затем уводим с наклоном (спека §4.3 №9)

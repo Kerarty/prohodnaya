@@ -3,13 +3,28 @@ import { FONT, INK_HEX, THEME } from './theme';
 import { currentLayout, subscribe, DESIGN_CX, type ViewRect } from './layout';
 import { t } from '../i18n';
 
+/** Палитра освещения смены (план v2 А4): тонировка ТОЛЬКО фона — гость/ниша/карта не тронуты. */
+export interface LightPalette {
+  wall: number;
+  cloud: number;
+  floor: number;
+}
+
+/** 4 стадии рабочего дня: утро (дефолт) → полдень → закат → светлый вечер. */
+export const LIGHT_STAGES: readonly LightPalette[] = [
+  { wall: 0xffedd3, cloud: 0xffffff, floor: 0xffd9a0 },
+  { wall: 0xfff4dc, cloud: 0xffffff, floor: 0xffdfa2 },
+  { wall: 0xffddba, cloud: 0xfff2dc, floor: 0xfccf92 },
+  { wall: 0xe9d7e4, cloud: 0xf6e9f2, floor: 0xdbb98f },
+];
+
 export interface BoothView {
   /** Лампочки вывески — для волн (juice). */
   bulbs: Phaser.GameObjects.Arc[];
   /** Тень гостя — противофаза дыханию. */
   guestShadow: Phaser.GameObjects.Graphics | null;
-  /** Перерисовать фон под текущую видимую область (layout вызывает сам на resize). */
-  redraw: () => void;
+  /** Перерисовать фон (опц. с палитрой освещения) под текущую видимую область. */
+  redraw: (palette?: LightPalette) => void;
 }
 
 /**
@@ -21,7 +36,8 @@ export interface BoothView {
  * На resize Graphics перерисовывается, объекты (лампочки, текст, тень) не
  * пересоздаются — волны в сценах продолжают работать по живым ссылкам.
  */
-export function drawBooth(scene: Phaser.Scene, mode: 'game' | 'menu'): BoothView {
+export function drawBooth(scene: Phaser.Scene, mode: 'game' | 'menu', light?: LightPalette): BoothView {
+  let palette: LightPalette = light ?? LIGHT_STAGES[0];
   const g = scene.add.graphics().setDepth(-10);
 
   // Тень гостя создаётся один раз — не зависит от вьюпорта (tween живёт на ней)
@@ -46,18 +62,18 @@ export function drawBooth(scene: Phaser.Scene, mode: 'game' | 'menu'): BoothView
     g.clear();
 
     // Стена и пол: стена уходит вверх за пределы дизайна, пол — до низа (1280)
-    g.fillStyle(THEME.BG_WALL, 1);
+    g.fillStyle(palette.wall, 1);
     g.fillRect(view.x0, view.y0, w, 820 - view.y0);
     // плинтус у стыка
     g.fillStyle(THEME.INK, 0.06);
     g.fillRect(view.x0, 800, w, 20);
-    g.fillStyle(THEME.BG_FLOOR, 1);
+    g.fillStyle(palette.floor, 1);
     g.fillRect(view.x0, 820, w, 460);
     g.lineStyle(3, THEME.INK, 0.12);
     g.lineBetween(view.x0, 820, view.x1, 820);
 
     // Облака на стене: ядро 0..720 — авторские позиции спеки, расширения — генератор
-    g.fillStyle(THEME.CLOUD, 0.75);
+    g.fillStyle(palette.cloud, 0.75);
     drawCloud(g, 70, 302);
     drawCloud(g, 575, 272);
     drawCloud(g, 85, 467);
@@ -135,7 +151,10 @@ export function drawBooth(scene: Phaser.Scene, mode: 'game' | 'menu'): BoothView
     }
   }
 
-  return { bulbs, guestShadow, redraw: draw };
+  return { bulbs, guestShadow, redraw: (p?: LightPalette) => {
+    if (p) palette = p;
+    draw();
+  } };
 }
 
 /** Облако из двух «пухов» (пара roundedRect), как в спеке §4.1. */

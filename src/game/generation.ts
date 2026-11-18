@@ -309,5 +309,43 @@ export function generateShift(
     }
   }
 
+  decorateEvents(seed, shift, total, apps);
+
   return { seed, shift, today, rules, apps };
+}
+
+/**
+ * Событийные слоты (план v2 В4 + А3): RNG только из суб-потока 'events' —
+ * существующие потоки queue/char/doc/rules не тронуты, сиды бит-в-бит.
+ * — VIP (смены 3+, слот не первый/не последний): терпение ×0.5, зарплата ×2;
+ * — невидимка (смены 6+, ≤1 за смену; на смене 6 — обучающий слот);
+ * — клон-двойник (смены 12+): гость повторно через ≥4 заявки.
+ */
+function decorateEvents(seed: number, shift: number, total: number, apps: Application[]): void {
+  if (total < 6) return;
+  const rngEvents = rngFor(seed, 'events');
+  const midSlots = Math.max(1, total - 2);
+
+  let vipIndex = -1;
+  if (shift >= 3) {
+    vipIndex = 2 + Math.floor(rngEvents() * midSlots);
+    if (vipIndex >= total - 1) vipIndex = total - 2;
+    apps[vipIndex].vip = true;
+  }
+
+  let ghostIndex = -1;
+  if (shift >= 6) {
+    ghostIndex = 3 + Math.floor(rngEvents() * midSlots);
+    if (ghostIndex >= total - 1) ghostIndex = total - 2;
+    if (ghostIndex === vipIndex) ghostIndex = Math.max(2, vipIndex - 1);
+    apps[ghostIndex].ghost = true;
+    if (shift === 6) apps[ghostIndex].training = true;
+  }
+
+  if (shift >= 12 && apps.length >= 6) {
+    const src = 1 + Math.floor(rngEvents() * Math.max(1, apps.length - 5));
+    const insertAt = Math.min(apps.length, src + 4 + Math.floor(rngEvents() * 3));
+    const clone: Application = { ...apps[src], vip: false, ghost: false, training: false };
+    apps.splice(insertAt, 0, clone);
+  }
 }

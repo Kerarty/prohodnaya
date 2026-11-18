@@ -41,6 +41,10 @@ export interface Application {
   ruleId?: number;
   /** Обучающий слот: ошибка не засчитывается (ГДД разд. 8). */
   training?: boolean;
+  /** Событийный слот (план v2 В4): спешащий VIP — терпение ×0.5, зарплата ×2. */
+  vip?: boolean;
+  /** Событийный слот (план v2 А3): гость-невидимка — проявляется проверкой поля. */
+  ghost?: boolean;
 }
 
 export function docFromGuest(guest: CharacterAttrs, expiry: number, name: string): PassDoc {
