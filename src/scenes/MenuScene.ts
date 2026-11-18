@@ -3,6 +3,10 @@ import { getPlatform } from '../platform';
 import { BALANCE } from '../game/economy';
 import { dateKey } from '../game/save';
 import { flushSession, session, sessionRank, sessionToday } from '../game/session';
+import { claimMission, ensureMissions, isClaimable, MISSIONS } from '../game/missions';
+import { dailySeed } from '../game/save';
+import { rngFor } from '../game/rng';
+import type { TranslationKey } from '../i18n';
 import { drawBooth } from '../render/booth';
 import { applyCamera, OVERLAY, screenCenter, DESIGN_CX, DESIGN_W } from '../render/layout';
 import { fadeIn, fadeToScene } from '../render/transition';
@@ -212,6 +216,44 @@ export class MenuScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
 
+    // Задания дня (план v2 В2) + бейдж сценария дня (В6)
+    const missions = ensureMissions(s);
+    const scenarioIdx = Math.floor(rngFor(dailySeed(dateKey()), 'scenario')() * 4);
+    const chipLabels = [
+      `${t('mission1')} ${missions.progress[0]}/${MISSIONS[0].goal}`,
+      `${t('mission2')} ${missions.progress[1]}/${MISSIONS[1].goal}`,
+      `${t('mission3')} ${missions.progress[2]}/${MISSIONS[2].goal}`,
+      t(`scenario_${scenarioIdx}` as TranslationKey),
+    ];
+    for (let i = 0; i < 4; i++) {
+      const isMission = i < 3;
+      const claimable = isMission && isClaimable(s, i as 0 | 1 | 2);
+      const chipX = 90 + i * 180;
+      const chip = makeButton(
+        this,
+        chipX,
+        452,
+        chipLabels[i],
+        () => {
+          if (!isMission) return;
+          if (claimMission(s, i as 0 | 1 | 2)) {
+            void flushSession();
+            sfx.purchase();
+            fadeToScene(this, 'Menu');
+          }
+        },
+        {
+          secondary: !claimable,
+          color: claimable ? THEME.SUCCESS : undefined,
+          width: 172,
+          height: 56,
+          fontSize: 11,
+          subtitle: isMission ? `+${MISSIONS[i].reward}` : undefined,
+        },
+      );
+      if (!isMission) chip.setAlpha(0.9);
+    }
+
     // Строки кабинета: stagger-въезд (спека §4.6)
     const resume = s.currentShift;
     const shiftLabel = resume
@@ -222,6 +264,9 @@ export class MenuScene extends Phaser.Scene {
     const dailyPlayed = s.dailyPlayed === dateKey();
     const nightPlayed = s.nightPlayed === dateKey();
     const unlocked = rank.index >= 1;
+    const showSinks = s.tools.lens && s.tools.detector;
+    const showCoffee = showSinks && !s.tools.coffee;
+    const showGlove = showSinks && !s.tools.glove;
     const debugMode = new URLSearchParams(location.search).has('debug');
 
     const rows: Array<{ alpha: number; make: () => Phaser.GameObjects.Container }> = [
@@ -298,27 +343,44 @@ export class MenuScene extends Phaser.Scene {
           ),
       },
       {
-        alpha: s.tools.lens || s.tokens < BALANCE.lensPrice ? 0.55 : 1,
+        alpha: showCoffee || s.tools.lens || s.tokens < BALANCE.lensPrice ? 0.55 : 1,
         make: () =>
-          makeButton(this, width / 2 - 98, 924, t('lensBuy', { p: BALANCE.lensPrice }), () => this.buy('lens'), {
-            secondary: true,
-            width: 186,
-            height: 72,
-            fontSize: 18,
-            subtitle: t('lensHint'),
-          }),
+          showCoffee
+            ? makeButton(this, width / 2 - 98, 924, `${t('coffeeName')} ${BALANCE.coffeePrice}`, () => this.buy('coffee'), {
+                secondary: true,
+                width: 186,
+                height: 72,
+                fontSize: 18,
+                subtitle: t('coffeeHint'),
+              })
+            : makeButton(this, width / 2 - 98, 924, t('lensBuy', { p: BALANCE.lensPrice }), () => this.buy('lens'), {
+                secondary: true,
+                width: 186,
+                height: 72,
+                fontSize: 18,
+                subtitle: t('lensHint'),
+              }),
       },
       {
-        alpha: s.tools.detector || s.tokens < BALANCE.detectorPrice ? 0.55 : 1,
+        alpha: showGlove || s.tools.detector || s.tokens < BALANCE.detectorPrice ? 0.55 : 1,
         make: () =>
-          makeButton(
-            this,
-            width / 2 + 98,
-            924,
-            t('detectorBuy', { p: BALANCE.detectorPrice }),
-            () => this.buy('detector'),
-            { secondary: true, width: 186, height: 72, fontSize: 18, subtitle: t('detectorHint') },
-          ),
+          showGlove
+            ? makeButton(
+                this,
+                width / 2 + 98,
+                924,
+                `${t('gloveName')} ${BALANCE.glovePrice}`,
+                () => this.buy('glove'),
+                { secondary: true, width: 186, height: 72, fontSize: 18, subtitle: t('gloveHint') },
+              )
+            : makeButton(
+                this,
+                width / 2 + 98,
+                924,
+                t('detectorBuy', { p: BALANCE.detectorPrice }),
+                () => this.buy('detector'),
+                { secondary: true, width: 186, height: 72, fontSize: 18, subtitle: t('detectorHint') },
+              ),
       },
     ];
 
@@ -400,15 +462,16 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  private buy(tool: 'lens' | 'detector'): void {
+  private buy(tool: 'lens' | 'detector' | 'coffee' | 'glove'): void {
     const s = session();
-    if (tool === 'lens' ? s.tools.lens : s.tools.detector) return;
-    const price = tool === 'lens' ? BALANCE.lensPrice : BALANCE.detectorPrice;
+    if (s.tools[tool]) return;
+    const price = BALANCE[
+      `${tool}Price` as 'lensPrice' | 'detectorPrice' | 'coffeePrice' | 'glovePrice'
+    ];
     if (s.tokens < price) return;
 
     s.tokens -= price;
-    if (tool === 'lens') s.tools.lens = true;
-    else s.tools.detector = true;
+    s.tools[tool] = true;
     void flushSession();
     sfx.purchase();
     fadeToScene(this, 'Menu');

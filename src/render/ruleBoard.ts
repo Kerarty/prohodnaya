@@ -12,6 +12,8 @@ export interface RuleBoardView {
   board: Phaser.GameObjects.Container;
   /** Пульс + волна лампочек — при старте смены/новом правиле (спека §4.2). */
   pulse(): void;
+  /** Золотая метка «горячего» правила — лидера поимок (план v2 В8). */
+  markRule(ruleId: number): void;
 }
 
 /** Доска правил: белая табличка в ink-обводке, заголовок-плашка, лампочки (спека §4.2). */
@@ -61,7 +63,7 @@ export function drawRuleBoard(
     board.add(rowBg);
     board.add(
       scene.add
-        .text(-width / 2 + 34, y, ruleText(rule.id), {
+        .text(-width / 2 + 34, y, rule.label ?? ruleText(rule.id), {
           fontFamily: FONT,
           fontSize: '20px',
           color: INK_HEX,
@@ -113,7 +115,16 @@ export function drawRuleBoard(
     });
   };
 
-  return { board, pulse };
+  const markRule = (ruleId: number): void => {
+    const i = rules.findIndex((r) => r.id === ruleId);
+    if (i < 0) return;
+    const y = -half + 92 + i * rowH;
+    const star = scene.add.circle(-width / 2 + 20, y, 7, THEME.GOLD).setStrokeStyle(2, THEME.INK, 1);
+    board.add(star);
+    scene.tweens.add({ targets: star, scale: { from: 0, to: 1 }, duration: 240, ease: 'Back.easeOut' });
+  };
+
+  return { board, pulse, markRule };
 }
 
 /** Пиктограмма: перечёркнутые признаки правила — до двух символов (механика, не декор). */

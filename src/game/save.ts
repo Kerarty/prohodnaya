@@ -3,6 +3,18 @@ import type { SaveData } from '../platform';
 export interface ToolState {
   lens: boolean;
   detector: boolean;
+  /** Синки за жетоны (план v2 В5): кофе — терпение +5 с, перчатка — +1 ошибка. */
+  coffee: boolean;
+  glove: boolean;
+}
+
+/** Задания дня (план v2 В2): прогресс и получение наград за календарный день. */
+export interface MissionSave {
+  date: string;
+  /** Прогресс: [верные решения, безошибочные смены, пойманные подделки]. */
+  progress: [number, number, number];
+  /** Награда получена. */
+  claimed: [boolean, boolean, boolean];
 }
 
 /** Незавершённая смена — восстановление с той же заявки (ГДД разд. 9). */
@@ -54,6 +66,10 @@ export interface SaveDataV1 {
   bestStreak: number;
   tools: ToolState;
   currentShift: ShiftProgress | null;
+  /** Задания дня (план v2 В2); null — до первого запуска за день. */
+  missions: MissionSave | null;
+  /** Счётчик поимок по правилам (план v2 В8) — ключ = rule.id. */
+  ruleCatch: Record<string, number>;
   /** Ключ даты 'YYYY-MM-DD' последней сыгранной дневной смены. */
   dailyPlayed: string | null;
   /** Ключ даты последней ночной смены (1 в день, ГДД разд. 7). */
@@ -96,8 +112,10 @@ export function defaultSave(todayBase: number): SaveDataV1 {
     todayBase,
     currentStreak: 0,
     bestStreak: 0,
-    tools: { lens: false, detector: false },
+    tools: { lens: false, detector: false, coffee: false, glove: false },
     currentShift: null,
+    missions: null,
+    ruleCatch: {},
     dailyPlayed: null,
     nightPlayed: null,
     mp: {
@@ -143,6 +161,8 @@ export function normalizeSave(raw: unknown, todayBase: number): SaveDataV1 {
     tools: {
       lens: bool(tools.lens, false),
       detector: bool(tools.detector, false),
+      coffee: bool(tools.coffee, false),
+      glove: bool(tools.glove, false),
     },
     currentShift: cs
       ? {
@@ -161,11 +181,37 @@ export function normalizeSave(raw: unknown, todayBase: number): SaveDataV1 {
       : null,
     dailyPlayed: typeof r.dailyPlayed === 'string' ? r.dailyPlayed : null,
     nightPlayed: typeof r.nightPlayed === 'string' ? r.nightPlayed : null,
+    missions: readMissions(r.missions),
+    ruleCatch: readRuleCatch(r.ruleCatch),
     mp: readMp(r.mp),
     soundOn: bool(r.soundOn, true),
     ad: readAd(r.ad),
     lang: typeof r.lang === 'string' ? r.lang : null,
   };
+}
+
+function readMissions(raw: unknown): MissionSave | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const m = raw as Record<string, unknown>;
+  if (typeof m.date !== 'string') return null;
+  const triplet = (v: unknown, def: number[]): [number, number, number] =>
+    Array.isArray(v) && v.length === 3 ? [num(v[0], def[0]), num(v[1], def[1]), num(v[2], def[2])] : [def[0], def[1], def[2]];
+  const bools = (v: unknown): [boolean, boolean, boolean] =>
+    Array.isArray(v) && v.length === 3 ? [bool(v[0], false), bool(v[1], false), bool(v[2], false)] : [false, false, false];
+  return {
+    date: m.date,
+    progress: triplet(m.progress, [0, 0, 0]),
+    claimed: bools(m.claimed),
+  };
+}
+
+function readRuleCatch(raw: unknown): Record<string, number> {
+  if (typeof raw !== 'object' || raw === null) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (/^\d+$/.test(k)) out[k] = int(v, 0, 0);
+  }
+  return out;
 }
 
 function readMp(raw: unknown): MultiplayerSave {

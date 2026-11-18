@@ -43,6 +43,10 @@ import { drawRuleBoard } from '../render/ruleBoard';
 import { drawHardShadow, FONT, INK_HEX, THEME } from '../render/theme';
 import { fadeIn, fadeToScene } from '../render/transition';
 import { t } from '../i18n';
+import type { TranslationKey } from '../i18n';
+import { bumpMissions } from '../game/missions';
+import { dailySeed, dateKey } from '../game/save';
+import { rngFor } from '../game/rng';
 import { sfx } from '../systems/sfx';
 import { makeButton } from '../ui/button';
 import { makeLangButton } from '../ui/langPicker';
@@ -157,7 +161,7 @@ export class GameScene extends Phaser.Scene {
   private patienceEvent: Phaser.Time.TimerEvent | null = null;
   private boothView: BoothView | null = null;
   private signBulbs: Phaser.GameObjects.Arc[] = [];
-  private boardView: { board: Phaser.GameObjects.Container; pulse(): void } | null = null;
+  private boardView: { board: Phaser.GameObjects.Container; pulse(): void; markRule(ruleId: number): void } | null = null;
   // Пайплайн смены (UX-директор №4): цель видна точками, ошибки — красными слотами
   private pipelineDots: Phaser.GameObjects.Arc[] = [];
   private mistakeSlots: Phaser.GameObjects.Arc[] = [];
@@ -171,6 +175,15 @@ export class GameScene extends Phaser.Scene {
   private entourage: Phaser.GameObjects.Container[] = [];
   private vipRibbon: Phaser.GameObjects.Container | null = null;
   private ghostFlicker: Phaser.Tweens.Tween | null = null;
+  // План v2 П3/П4: мини-цель, овертайм, сценарий дня, счётчик подделок, перчатка
+  private shiftGoal: { ruleId: number; count: number; bonus: number; broken: boolean } | null = null;
+  private goalChip: Phaser.GameObjects.Text | null = null;
+  private overtimeActive = false;
+  private overtimeOffered = false;
+  private overtimeUi: Phaser.GameObjects.GameObject[] = [];
+  private fakesCaught = 0;
+  private scenario = -1;
+  private maxErrorsN = MAX_ERRORS;
   // Блиц/дуэль: глобальный таймер забега вместо терпения на заявку
   private runDuration = BALANCE.blitzDurationMs;
   private runEndAt = 0;
@@ -289,6 +302,29 @@ export class GameScene extends Phaser.Scene {
       `[shift] ${this.runMode}, сид ${this.seed}, заявок ${this.queue.length}`,
     );
 
+    // План v2 В1: мини-цель смены — активное правило с ≥2 носителями в очереди
+    if (this.runMode === 'shift') {
+      let best: { ruleId: number; count: number; difficulty: number } | null = null;
+      for (const rule of this.rules) {
+        const count = this.queue.filter((a) => a.ruleId === rule.id).length;
+        if (count >= 2 && (!best || count > best.count)) {
+          best = { ruleId: rule.id, count, difficulty: rule.difficulty };
+        }
+      }
+      if (best) {
+        this.shiftGoal = {
+          ruleId: best.ruleId,
+          count: best.count,
+          bonus: best.difficulty >= 4 ? BALANCE.goalRareBonus : BALANCE.goalBonus,
+          broken: false,
+        };
+      }
+    }
+    // План v2 В6: сценарий дня — runtime-модификаторы карьерных смен (сид-генерация не тронута)
+    this.scenario = Math.floor(rngFor(dailySeed(dateKey()), 'scenario')() * 4);
+    // План v2 В5: перчатка — +1 доп. ошибка, только карьерные смены
+    this.maxErrorsN = MAX_ERRORS + (this.runMode === 'shift' && s.tools.glove ? BALANCE.gloveBonusErrors : 0);
+
     if (s.tools.detector) this.detectorCharges = BALANCE.detectorFreeCharges;
 
     if (this.runMode === 'shift' && !s.currentShift) {
@@ -354,7 +390,7 @@ export class GameScene extends Phaser.Scene {
         );
       }
       const slotsX = startX + (n - 1) * gap + 34;
-      for (let m = 0; m < MAX_ERRORS; m++) {
+      for (let m = 0; m < this.maxErrorsN; m++) {
         this.mistakeSlots.push(
           this.add
             .circle(slotsX + m * 26, PIPELINE_Y, 8, THEME.PAPER)
@@ -370,6 +406,22 @@ export class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
+
+      // Мини-цель смены: чип у счётчика (план v2 В1)
+      if (this.shiftGoal) {
+        const goalRule = this.rules.find((r) => r.id === this.shiftGoal?.ruleId);
+        const ruleLabel = goalRule?.label ?? t(`rule_${this.shiftGoal.ruleId}` as TranslationKey);
+        this.goalChip = this.add
+          .text(40, 994, t('goalChip', { r: ruleLabel, n: this.shiftGoal.count }), {
+            fontFamily: FONT,
+            fontSize: '15px',
+            color: INK_HEX,
+            fontStyle: 'bold',
+            backgroundColor: '#ffc93c',
+            padding: { x: 8, y: 4 },
+          })
+          .setOrigin(0, 0.5);
+      }
     }
 
     if (this.runMode === 'duel') {
@@ -536,7 +588,7 @@ export class GameScene extends Phaser.Scene {
     if (this.runMode === 'shift') {
       const label = this.isDaily ? t('dailyName') : this.isNight ? t('nightName') : t('shiftN', { n: this.shift });
       // Ошибки из брошенного сейва могут быть выше лимита — в интерфейсе не показываем «4/3»
-      const shownErrors = Math.min(this.errors, MAX_ERRORS);
+      const shownErrors = Math.min(this.errors, this.maxErrorsN);
       this.counter?.setText(
         `${label} · ${t('entryOf', { i: this.index + 1, n: this.queue.length })} · ${t('errorsOf', { e: shownErrors, m: MAX_ERRORS })}`,
       );
@@ -930,6 +982,88 @@ export class GameScene extends Phaser.Scene {
     this.guest?.setAlpha(1);
   }
 
+  /** Мини-цель (план v2 В1): ошибка на носителе правила бьёт билет. */
+  private breakGoalIfHit(app: Application): void {
+    if (!this.shiftGoal || this.shiftGoal.broken) return;
+    if (app.ruleId === this.shiftGoal.ruleId) {
+      this.shiftGoal.broken = true;
+      this.goalChip?.setStyle({ backgroundColor: '#ff4757' });
+      this.goalChip?.setColor('#ffffff');
+      this.goalChip?.setAlpha(0.85);
+    }
+  }
+
+  /** Оффер овертайма (план v2 В3): +3 заявки ×2, ошибка — конец. */
+  private offerOvertime(): void {
+    const width = DESIGN_W;
+    const cy = screenCenter().y;
+    const dim = this.add
+      .rectangle(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 0x000000, 0.5)
+      .setInteractive();
+    const panel = this.add.container(width / 2, cy).setScale(0.85).setAlpha(0);
+    const g = this.add.graphics();
+    drawHardShadow(g, -300, -180, 600, 360, 20);
+    g.fillStyle(THEME.PAPER, 1);
+    g.fillRoundedRect(-300, -180, 600, 360, 20);
+    g.lineStyle(5, THEME.INK, 1);
+    g.strokeRoundedRect(-300, -180, 600, 360, 20);
+    g.fillStyle(THEME.ACCENT, 1);
+    g.fillRoundedRect(-170, -168, 340, 50, 12);
+    g.lineStyle(3, THEME.INK, 1);
+    g.strokeRoundedRect(-170, -168, 340, 50, 12);
+    panel.add(g);
+    panel.add(
+      this.add
+        .text(0, -143, t('overtimeTitle'), {
+          fontFamily: FONT,
+          fontSize: '26px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setStroke(INK_HEX, 3),
+    );
+    panel.add(
+      this.add
+        .text(0, -40, t('overtimeDesc'), {
+          fontFamily: FONT,
+          fontSize: '21px',
+          color: INK_HEX,
+          wordWrap: { width: 480 },
+          align: 'center',
+        })
+        .setOrigin(0.5),
+    );
+    panel.setScale(0.85);
+    panel.setAlpha(0);
+    this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 280, ease: 'Back.easeOut' });
+    this.overtimeUi = [dim, panel];
+    makeButton(this, width / 2, cy + 40, t('overtimeYes'), () => this.startOvertime(), {
+      color: THEME.SUCCESS,
+      width: 320,
+    });
+    makeButton(this, width / 2, cy + 130, t('overtimeNo'), () => this.clearOvertimeUi(), {
+      secondary: true,
+      width: 320,
+    });
+  }
+
+  /** Принять овертайм: доп. заявки из сольта сида, ×2 зарплата. */
+  private startOvertime(): void {
+    this.clearOvertimeUi();
+    this.overtimeActive = true;
+    const extra = generateShift((this.seed ^ BALANCE.overtimeSeedSalt) >>> 0, this.shift, sessionToday(), BALANCE.overtimeApps);
+    this.queue = this.queue.concat(extra.apps);
+    sfx.purchase();
+    this.showApplication();
+  }
+
+  /** Убрать оффер (отказ или принятие). */
+  private clearOvertimeUi(): void {
+    for (const obj of this.overtimeUi) obj.destroy();
+    this.overtimeUi = [];
+  }
+
   /** Камера-панч вердикта поверх существующего shake: лёгкий zoom-in/out (арт-директор №9). */
   private punch(): void {
     const cam = this.cameras.main;
@@ -975,7 +1109,12 @@ export class GameScene extends Phaser.Scene {
     this.patienceBar.scaleX = 1;
     this.patienceBar.fillColor = THEME.PANEL_DARK;
     // Спешащий VIP: терпение ×0.5 (план v2 В4)
-    const patienceMs = Math.round(PATIENCE_MS * (this.queue[this.index]?.vip ? 0.5 : 1));
+    const patienceMs = Math.round(
+      PATIENCE_MS *
+        (this.queue[this.index]?.vip ? 0.5 : 1) *
+        (this.scenario === 1 ? 0.75 : 1) +
+        (session().tools.coffee ? BALANCE.coffeeBonusMs : 0),
+    );
     this.tweens.add({ targets: this.patienceBar, scaleX: 0, duration: patienceMs, ease: 'Linear' });
     // Палитра угрозы: последние 30% — GOLD→ACCENT→ERROR, читается периферией (арт-директор №8)
     this.tweens.addCounter({
@@ -1008,6 +1147,13 @@ export class GameScene extends Phaser.Scene {
     this.clearIntro();
     this.pipelineDots[this.index]?.setData('ok', false);
     this.updatePipeline();
+    this.breakGoalIfHit(this.queue[this.index]);
+    if (this.overtimeActive) {
+      this.errors += 1;
+      this.time.delayedCall(450, () => this.finish());
+      this.flash(THEME.NICHE_FLOOR);
+      return;
+    }
     this.trackProgress();
     this.flash(THEME.NICHE_FLOOR);
     this.time.delayedCall(500, () => this.leaveGuest('timeout'));
@@ -1035,9 +1181,11 @@ export class GameScene extends Phaser.Scene {
         this.matchApi?.notifyProgress?.(this.duelMatchId ?? '', this.runScore());
       }
       if (this.runMode === 'shift') {
-        const base = correctReward(fast);
+        const base = correctReward(fast) + (fast && this.scenario === 2 ? BALANCE.speedPayBonus : 0); // В6: двойная плата за скорость
         let reward = this.isNight ? nightReward(base) : base;
         if (app.vip) reward *= 2; // спешащий VIP платит двойную (план v2 В4)
+        if (this.scenario === 0) reward = Math.ceil(reward * 1.25); // В6: премиальный день
+        if (app.reason === 'forgery') this.fakesCaught += 1;
         this.earnedTokens += reward;
         this.earnedXp += BALANCE.xpPerCorrect;
         if (fast) this.fastCount += 1;
@@ -1065,6 +1213,10 @@ export class GameScene extends Phaser.Scene {
               this.floatText(t('streakLine', { n: s.currentStreak }), '#ffc93c'),
             );
           }
+          if (this.scenario === 3 && s.currentStreak % 5 === 0) {
+            this.earnedTokens += 2;
+            this.time.delayedCall(500, () => this.floatText('+2', '#ffc93c'));
+          }
         });
         this.time.delayedCall(800, () => this.leaveGuest('ok'));
       } else {
@@ -1084,6 +1236,7 @@ export class GameScene extends Phaser.Scene {
       session().currentStreak = 0;
       this.pipelineDots[this.index]?.setData('ok', false);
       this.updatePipeline();
+      this.breakGoalIfHit(app);
       if (this.guest) {
         guestReact(this.guest, 'reject');
         guestDeflate(this.guest);
@@ -1098,6 +1251,13 @@ export class GameScene extends Phaser.Scene {
         sfx.fail();
         this.punch();
       });
+      if (this.overtimeActive) {
+        // Овертайм (план v2 В3): ошибка — смена сразу закрывается, бонус 50 сгорает
+        this.errors += 1;
+        this.updatePipeline();
+        this.time.delayedCall(700, () => this.finish());
+        return;
+      }
       this.time.delayedCall(700, () => this.showMistake(app));
     }
   }
@@ -1163,6 +1323,19 @@ export class GameScene extends Phaser.Scene {
     this.index += 1;
     if (this.runMode !== 'shift' && this.runEnded) return; // время вышло посреди перехода
     if (this.index >= this.queue.length) {
+      // Овертайм (план v2 В3): карьерная смена ≥2 — предложение +3 заявок за ×2
+      if (
+        this.runMode === 'shift' &&
+        !this.isDaily &&
+        !this.isNight &&
+        this.shift >= 2 &&
+        !this.overtimeOffered &&
+        !this.overtimeActive
+      ) {
+        this.overtimeOffered = true;
+        this.offerOvertime();
+        return;
+      }
       if (this.runMode === 'shift') this.finish();
       else this.endRun();
     } else {
@@ -1190,6 +1363,20 @@ export class GameScene extends Phaser.Scene {
     if (counted) this.errors += 1;
     this.updateCounter();
     this.updatePipeline();
+    // В8: горячая метка правила — золотая точка на доске у лидера поимок
+    if (counted && app.ruleId) {
+      const sess = session();
+      sess.ruleCatch[String(app.ruleId)] = (sess.ruleCatch[String(app.ruleId)] ?? 0) + 1;
+      let bestId = app.ruleId;
+      let bestN = 0;
+      for (const [k, v] of Object.entries(sess.ruleCatch)) {
+        if (v > bestN && this.rules.some((r) => r.id === Number(k))) {
+          bestId = Number(k);
+          bestN = v;
+        }
+      }
+      this.boardView?.markRule(bestId);
+    }
     if (counted && this.guest) spawnThought(this, this.guest);
 
     const dim = this.add
@@ -1201,7 +1388,7 @@ export class GameScene extends Phaser.Scene {
 
     const title = counted ? t('mistake') : t('training');
     const limitReached =
-      counted && this.errors >= MAX_ERRORS && !this.isNight && this.runMode === 'shift';
+      counted && this.errors >= this.maxErrorsN && !this.isNight && this.runMode === 'shift';
     // Прощение за рекламу — только на платформах с рекламой (ГДД разд. 7)
     const forgivePossible =
       limitReached && !this.forgivenThisShift && getPlatform().adsSupported;
@@ -1336,6 +1523,7 @@ export class GameScene extends Phaser.Scene {
     s.currentShift = null;
     s.ad.shiftsSince += 1;
     void getPlatform().submitScore(BOARD_IDS.streak, s.bestStreak);
+    bumpMissions(s, { correct: this.correct, clean: false, fakes: this.fakesCaught });
     void flushSession();
     this.resultShown = true;
 
@@ -1373,7 +1561,7 @@ export class GameScene extends Phaser.Scene {
     );
 
     // 3/3 — штампуем ошибки прямо на панели (UX-директор №8)
-    for (let m = 0; m < MAX_ERRORS; m++) {
+    for (let m = 0; m < this.maxErrorsN; m++) {
       const xg = this.add.graphics();
       xg.lineStyle(6, THEME.ERROR, 1);
       xg.lineBetween(-16, -16, 16, 16);
@@ -1391,7 +1579,7 @@ export class GameScene extends Phaser.Scene {
 
     panel.add(
       this.add
-        .text(0, -75, t('interruptedErrors', { e: Math.min(this.errors, MAX_ERRORS), m: MAX_ERRORS }), {
+        .text(0, -75, t('interruptedErrors', { e: Math.min(this.errors, this.maxErrorsN), m: MAX_ERRORS }), {
           fontFamily: FONT,
           fontSize: '26px',
           color: INK_HEX,
@@ -1422,7 +1610,8 @@ export class GameScene extends Phaser.Scene {
     const s = session();
     getPlatform().gameplayStop();
     const clean = this.errors === 0;
-    this.finishTokenTotal = this.earnedTokens + (clean ? BALANCE.cleanBonus : 0);
+    const goalBonus = this.shiftGoal && !this.shiftGoal.broken ? this.shiftGoal.bonus : 0;
+    this.finishTokenTotal = this.earnedTokens + (clean ? BALANCE.cleanBonus : 0) + goalBonus;
     this.finishXpTotal = this.earnedXp + (clean ? BALANCE.xpCleanShift : 0);
 
     s.tokens += this.finishTokenTotal;
@@ -1435,6 +1624,7 @@ export class GameScene extends Phaser.Scene {
     if (this.isDaily) {
       void getPlatform().submitScore(BOARD_IDS.daily, dailyScore(this.correct, this.fastCount, this.errors));
     }
+    bumpMissions(s, { correct: this.correct, clean, fakes: this.fakesCaught });
     void flushSession();
     this.resultShown = true;
 
@@ -1484,7 +1674,7 @@ export class GameScene extends Phaser.Scene {
         .text(
           0,
           -230,
-          t('doneStats', { c: this.correct, n: this.queue.length, e: Math.min(this.errors, MAX_ERRORS) }),
+          t('doneStats', { c: this.correct, n: this.queue.length, e: Math.min(this.errors, this.maxErrorsN) }),
           {
             fontFamily: FONT,
             fontSize: '26px',

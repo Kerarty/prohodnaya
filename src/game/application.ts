@@ -181,5 +181,5 @@ export function describeViolation(
             : null;
   const field: DocFieldId = rule.docs?.[0] ?? iconField ?? 'head';
   const key = rule.docs?.length ? 'violPass' : 'violGuest';
-  return { field, text: t(key, { rule: ruleText(rule.id) }) };
+  return { field, text: t(key, { rule: rule.label ?? ruleText(rule.id) }) };
 }

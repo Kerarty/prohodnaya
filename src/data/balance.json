@@ -61,5 +61,20 @@
   "duelDrawDelta": 0,
   "blitzRatingScale": 0.12,
   "blitzRatingStep": 10,
-  "blitzRatingCap": 30
+  "blitzRatingCap": 30,
+  "coffeePrice": 800,
+  "glovePrice": 1200,
+  "coffeeBonusMs": 5000,
+  "gloveBonusErrors": 1,
+  "overtimeApps": 3,
+  "overtimePayMult": 2,
+  "overtimeSeedSalt": 111,
+  "goalBonus": 25,
+  "goalRareBonus": 40,
+  "missionRewards": [
+    30,
+    50,
+    80
+  ],
+  "speedPayBonus": 2
 }

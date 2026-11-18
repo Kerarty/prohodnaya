@@ -1,4 +1,4 @@
-import type { AccessoryType, BodyForm, ColorName, EyesType, HeadForm } from '../game/attributes';
+import type { AccessoryType, BodyForm, CharacterAttrs, ColorName, EyesType, HeadForm } from '../game/attributes';
 import { t } from './index';
 import type { TranslationKey } from './index';
 
@@ -13,5 +13,30 @@ export const accessoryLabel = (a: AccessoryType): string =>
   a === 'none' ? t('accNone') : a === 'hat' ? t('accHat') : t('accAntenna');
 
 export const ruleText = (id: number): string => t(`rule_${id}` as TranslationKey);
+
+/** Подпись процедурного правила Tier 6 (план v2 В7): «Запрещено: {значение} {признак}». */
+export function syntheticRuleLabel(key: keyof CharacterAttrs, value: string): string {
+  const attrLabel =
+    key === 'headForm' || key === 'headColor'
+      ? t('headLabel')
+      : key === 'bodyForm' || key === 'bodyColor'
+        ? t('bodyLabel')
+        : key === 'eyes'
+          ? t('eyesLabel')
+          : t('accLabel');
+  const valueLabel =
+    key === 'headForm'
+      ? headFormLabel(value as HeadForm)
+      : key === 'bodyForm'
+        ? bodyFormLabel(value as BodyForm)
+        : key === 'headColor'
+          ? headColorLabel(value as ColorName)
+          : key === 'bodyColor'
+            ? bodyColorLabel(value as ColorName)
+            : key === 'eyes'
+              ? eyesLabel(value as EyesType)
+              : accessoryLabel(value as AccessoryType);
+  return t('ruleSynthetic', { v: valueLabel, a: attrLabel.toLowerCase() });
+}
 
 export const rankTitle = (index: number): string => t(`rank_${index}` as TranslationKey);

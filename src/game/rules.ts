@@ -1,7 +1,8 @@
 import type { CharacterAttrs } from './attributes';
 import type { PassDoc } from './application';
 import type { Rng } from './rng';
-import { shuffle } from './rng';
+import { chance, pickOf, shuffle } from './rng';
+import { syntheticRuleLabel } from '../i18n/labels';
 
 /** Что проверяет правило: гостя, документ и «сегодня» (день от первого запуска, ГДД разд. 3.1). */
 export interface RuleContext {
@@ -24,6 +25,8 @@ export interface Rule {
   docs?: readonly RuleDocField[];
   /** Для правил срока: 'expired' — просрочка, 'short' — «короче 3 дней». */
   expiryKind?: 'expired' | 'short';
+  /** Готовая подпись (процедурные правила Tier 6); пусто — локализация по rule_${id}. */
+  label?: string;
   /** Машинный предикат отказа: true — не пускать. */
   rejects(ctx: RuleContext): boolean;
 }
@@ -285,6 +288,8 @@ export function rulesConflict(a: Rule, b: Rule): boolean {
  * Активный набор правил смены (ГДД разд. 2, 4): смена 1 — 1 правило, 2–3 — 2, далее 3.
  * Без rng — новейшие введённые (детерминированная серия для тестов); с rng —
  * «2 новейших + 1 случайное из ранее освоенных» (ротация), ≤1 правила сложности 5.
+ * Смена 21+ (план v2 В7): слот ротации замещается процедурным правилом Tier 4–5
+ * «[значение]+[признак]» из свободного ключа — контент-поверх после исчерпания каталога.
  */
 export function rulesForShift(shift: number, rng?: Rng): Rule[] {
   const size = shift <= 1 ? 1 : shift <= 3 ? 2 : 3;
@@ -303,6 +308,13 @@ export function rulesForShift(shift: number, rng?: Rng): Rule[] {
   }
 
   if (rng && set.length < size) {
+    if (rng && shift >= 21) {
+      // Процедурное правило Tier 6: [цвет]+[признак] из свободного ключа (план v2 В7)
+      const synthetic = makeSyntheticRule(shift, rng, set);
+      if (synthetic && canAdd(synthetic)) {
+        set.push(synthetic);
+      }
+    }
     // Ротация: слот добирается случайным правилом из ранее освоенных (ГДД разд. 4)
     for (const rule of shuffle(mastered.filter((r) => !set.includes(r)), rng)) {
       if (set.length >= size) break;
@@ -316,4 +328,44 @@ export function rulesForShift(shift: number, rng?: Rng): Rule[] {
   }
 
   return set.slice().sort((a, b) => a.id - b.id);
+}
+
+/** Ключи признаков и допустимые значения для процедурных правил (план v2 В7). */
+const SYNTHETIC_KEYS: readonly (keyof CharacterAttrs)[] = [
+  'headForm',
+  'headColor',
+  'bodyForm',
+  'bodyColor',
+  'eyes',
+  'accessory',
+];
+const SYNTHETIC_VALUES: Record<keyof CharacterAttrs, readonly string[]> = {
+  headForm: ['circle', 'square', 'triangle', 'hexagon'],
+  headColor: ['red', 'orange', 'yellow', 'green', 'blue', 'purple'],
+  bodyForm: ['rect', 'trapezoid', 'oval'],
+  bodyColor: ['red', 'orange', 'yellow', 'green', 'blue', 'purple'],
+  eyes: ['dots', 'stripes'],
+  accessory: ['none', 'hat', 'antenna'],
+};
+
+/**
+ * Процедурное правило «Не пускать [значение] [признак]»: ключ, не занятый активным
+ * набором (rulesConflict), значение — любое из пула ключа. id ≥ 900 — за пределами
+ * каталога; label строится локализацией (rule.label, инвариант rule_${id} не трогаем).
+ */
+export function makeSyntheticRule(shift: number, rng: Rng, set: readonly Rule[]): Rule | null {
+  const takenKeys = new Set(set.flatMap((r) => Object.keys(r.icon)));
+  const freeKeys = SYNTHETIC_KEYS.filter((k) => !takenKeys.has(k));
+  if (freeKeys.length === 0) return null;
+  const key = pickOf(rng, freeKeys);
+  const value = pickOf(rng, SYNTHETIC_VALUES[key]);
+  const difficulty: RuleDifficulty = chance(rng, 0.5) ? 5 : 4;
+  return {
+    id: 900 + (shift % 100),
+    difficulty,
+    fromShift: shift,
+    icon: { [key]: value } as Partial<CharacterAttrs>,
+    label: syntheticRuleLabel(key, value),
+    rejects: (ctx) => ctx.guest[key] === value,
+  };
 }
